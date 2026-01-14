@@ -5,7 +5,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <StartupObject>Executor.PlanGraphRunner.PlanGraphRunnerTest</StartupObject>
+    <StartupObject>Executor.PlanGraphRunner.PlanGraphRunnerAdvancedTest</StartupObject>
   </PropertyGroup>
 
   <ItemGroup>
