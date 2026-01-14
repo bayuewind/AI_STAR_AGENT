@@ -5,7 +5,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <StartupObject>Agent.DecisionProtocol.Program</StartupObject>
+    <StartupObject>Agent.GoalModels.Program</StartupObject>
   </PropertyGroup>
 
   <ItemGroup>

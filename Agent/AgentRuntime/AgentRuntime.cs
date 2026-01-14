@@ -1,3 +1,5 @@
+using Agent.GoalModels;
+
 namespace Agent.AgentRuntime;
 
 /// <summary>
@@ -7,5 +9,14 @@ namespace Agent.AgentRuntime;
 /// </summary>
 public class AgentRuntime
 {
-    // TODO: 实现AgentRuntime逻辑
+    /// <summary>
+    /// 目标栈（AgentRuntime 持有 goal_stack）
+    /// </summary>
+    public GoalStack GoalStack { get; } = new();
+
+    // TODO: 实现其他 AgentRuntime 逻辑
+    // - 当前 plan_graph
+    // - 当前 node
+    // - 计数器（stuck_counter, replan_count等）
+    // - Update(snapshot) 方法
 }
