@@ -22,7 +22,7 @@ public class ToolDispatcherStub : IToolDispatcher
             ActionNodeId = string.Empty,
             Tool = tool,
             Ok = ok,
-            Error = ok ? null : new ErrorInfo
+            Error = ok ? null : new ToolError
             {
                 Code = "stub_error",
                 Detail = "Random stub error"
