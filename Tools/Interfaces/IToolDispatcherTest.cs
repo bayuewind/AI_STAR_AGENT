@@ -27,7 +27,8 @@ class IToolDispatcherTest
             { "x", 5 },
             { "y", 17 }
         };
-        var handle = dispatcher.Begin("node1", "NavigateTo", toolArgs);
+        int tickId = 0;
+        var handle = dispatcher.Begin("node1", "NavigateTo", toolArgs, tickId);
         if (!string.IsNullOrEmpty(handle))
         {
             Console.WriteLine($"  ✓ 通过: 返回 handle = '{handle}'");
@@ -40,7 +41,7 @@ class IToolDispatcherTest
 
         // 测试3: Poll 方法 - 初始状态应该未就绪
         Console.WriteLine("\n测试3: Poll 方法 - 初始状态应该未就绪");
-        var (ready1, result1) = dispatcher.Poll(handle);
+        var (ready1, result1) = dispatcher.Poll(handle, tickId);
         if (!ready1 && result1 == null)
         {
             Console.WriteLine("  ✓ 通过: 初始状态未就绪 (ready=false, result=null)");
@@ -52,9 +53,9 @@ class IToolDispatcherTest
 
         // 测试4: Poll 方法 - 等待后应该就绪
         Console.WriteLine("\n测试4: Poll 方法 - 等待后应该就绪");
-        // 等待足够的时间（模拟异步执行完成）
-        Thread.Sleep(50);
-        var (ready2, result2) = dispatcher.Poll(handle);
+        // NavigateTo 需要 60 ticks
+        tickId = 60;
+        var (ready2, result2) = dispatcher.Poll(handle, tickId);
         if (ready2 && result2 != null)
         {
             Console.WriteLine($"  ✓ 通过: 就绪状态 (ready=true, result不为null)");
@@ -67,7 +68,7 @@ class IToolDispatcherTest
 
         // 测试5: Poll 方法 - 再次 Poll 应该返回相同结果
         Console.WriteLine("\n测试5: Poll 方法 - 再次 Poll 应该返回相同结果");
-        var (ready3, result3) = dispatcher.Poll(handle);
+        var (ready3, result3) = dispatcher.Poll(handle, tickId + 1);
         if (ready3 && result3 != null && result3.ActionNodeId == result2!.ActionNodeId)
         {
             Console.WriteLine("  ✓ 通过: 再次 Poll 返回相同结果");
@@ -77,33 +78,35 @@ class IToolDispatcherTest
             Console.WriteLine("  ✗ 失败: 再次 Poll 结果不一致");
         }
 
-        // 测试6: Cancel 方法 - 取消后 Poll 应该返回未就绪
-        Console.WriteLine("\n测试6: Cancel 方法 - 取消后 Poll 应该返回未就绪");
-        var handle2 = dispatcher.Begin("node2", "ShopBuy", new Dictionary<string, object>());
-        dispatcher.Cancel(handle2);
-        var (ready4, result4) = dispatcher.Poll(handle2);
-        if (!ready4 && result4 == null)
+        // 测试6: Cancel 方法 - 取消后 Poll 应该返回 canceled
+        Console.WriteLine("\n测试6: Cancel 方法 - 取消后 Poll 应该返回 canceled");
+        tickId = 100;
+        var handle2 = dispatcher.Begin("node2", "ShopBuy", new Dictionary<string, object>(), tickId);
+        dispatcher.Cancel(handle2, tickId);
+        var (ready4, result4) = dispatcher.Poll(handle2, tickId + 1);
+        if (ready4 && result4 != null && !result4.Ok && result4.Error?.Code == "canceled")
         {
-            Console.WriteLine("  ✓ 通过: 取消后 Poll 返回未就绪");
+            Console.WriteLine("  ✓ 通过: 取消后 Poll 返回 canceled");
         }
         else
         {
-            Console.WriteLine($"  ✗ 失败: 期望 (ready=false, result=null)，实际 (ready={ready4}, result={result4})");
+            Console.WriteLine($"  ✗ 失败: 期望 canceled，实际 error.code={result4?.Error?.Code}");
         }
 
         // 测试7: 多个并发任务
         Console.WriteLine("\n测试7: 多个并发任务");
-        var handles = new List<string>();
-        for (int i = 0; i < 3; i++)
+        tickId = 200;
+        var handles = new List<string>
         {
-            var h = dispatcher.Begin($"node{i}", $"Tool{i}", new Dictionary<string, object>());
-            handles.Add(h);
-        }
+            dispatcher.Begin("node1", "NavigateTo", new Dictionary<string, object>(), tickId),
+            dispatcher.Begin("node2", "ShopBuy", new Dictionary<string, object>(), tickId),
+            dispatcher.Begin("node3", "OpenMenu", new Dictionary<string, object>(), tickId)
+        };
         Console.WriteLine($"  ✓ 通过: 创建了 {handles.Count} 个并发任务");
 
         // 测试8: 接口契约验证 - Poll 返回元组
         Console.WriteLine("\n测试8: 接口契约验证 - Poll 返回元组");
-        var pollResult = dispatcher.Poll(handles[0]);
+        var pollResult = dispatcher.Poll(handles[0], tickId);
         var (ready, result) = pollResult;
         if (result == null || result is ToolResult)
         {

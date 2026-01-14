@@ -88,12 +88,12 @@ public class PlanGraphRunner
     /// <summary>
     /// 替换当前计划图（用于 replan）
     /// </summary>
-    public void ReplacePlan(PlanGraph newPlanGraph)
+    public void ReplacePlan(PlanGraph newPlanGraph, int tickId)
     {
         // 清理旧的 handle
         if (_currentHandle != null)
         {
-            _toolDispatcher.Cancel(_currentHandle);
+            _toolDispatcher.Cancel(_currentHandle, tickId);
             _currentHandle = null;
         }
 
@@ -101,7 +101,7 @@ public class PlanGraphRunner
         _planGraph = newPlanGraph ?? throw new ArgumentNullException(nameof(newPlanGraph));
         _nodeCache = BuildNodeCache(newPlanGraph);
         CurrentNodeId = newPlanGraph.StartNodeId;
-        _nodeStartTick = 0;
+        _nodeStartTick = tickId;
         
         Console.WriteLine($"[PlanGraphRunner] 计划图已替换: {newPlanGraph.PlanId}, 起始节点: {newPlanGraph.StartNodeId}");
     }
@@ -109,17 +109,17 @@ public class PlanGraphRunner
     /// <summary>
     /// 重置 Runner 到当前计划图的起始节点
     /// </summary>
-    public void Reset()
+    public void Reset(int tickId)
     {
         // 清理旧的 handle
         if (_currentHandle != null)
         {
-            _toolDispatcher.Cancel(_currentHandle);
+            _toolDispatcher.Cancel(_currentHandle, tickId);
             _currentHandle = null;
         }
 
         CurrentNodeId = _planGraph.StartNodeId;
-        _nodeStartTick = 0;
+        _nodeStartTick = tickId;
         
         Console.WriteLine($"[PlanGraphRunner] Runner 已重置到起始节点: {_planGraph.StartNodeId}");
     }
@@ -163,7 +163,7 @@ public class PlanGraphRunner
         // 如果还没有开始执行，调用 Begin
         if (_currentHandle == null)
         {
-            _currentHandle = _toolDispatcher.Begin(node.NodeId, node.Tool, node.Args);
+            _currentHandle = _toolDispatcher.Begin(node.NodeId, node.Tool, node.Args, tickId);
             _nodeStartTick = tickId;
             Console.WriteLine($"[Tick {tickId}] 节点 {node.NodeId}: 开始执行工具 {node.Tool}");
             return RunnerStatus.WaitingTool;
@@ -176,11 +176,11 @@ public class PlanGraphRunner
             isTimeout = true;
             Console.WriteLine($"[Tick {tickId}] 节点 {node.NodeId}: 超时 (超时时间: {node.Timeout} ticks)");
             // ★关键：超时后立即 Cancel，避免残留动作和资源泄漏
-            _toolDispatcher.Cancel(_currentHandle!);
+            _toolDispatcher.Cancel(_currentHandle!, tickId);
         }
 
         // Poll 工具结果
-        var (ready, result) = _toolDispatcher.Poll(_currentHandle!);
+        var (ready, result) = _toolDispatcher.Poll(_currentHandle!, tickId);
 
         if (!ready && !isTimeout)
         {
@@ -192,7 +192,7 @@ public class PlanGraphRunner
         if (ready && result == null)
         {
             Console.WriteLine($"[Tick {tickId}] 节点 {node.NodeId}: Poll 返回 ready=true 但 result=null，强制取消并重规划");
-            _toolDispatcher.Cancel(_currentHandle!);
+            _toolDispatcher.Cancel(_currentHandle!, tickId);
             _currentHandle = null;
             return RunnerStatus.NeedReplan;
         }
@@ -207,7 +207,7 @@ public class PlanGraphRunner
         if (result == null)
         {
             Console.WriteLine($"[Tick {tickId}] 节点 {node.NodeId}: 错误 - 工具执行无结果");
-            _toolDispatcher.Cancel(_currentHandle!);
+            _toolDispatcher.Cancel(_currentHandle!, tickId);
             _currentHandle = null;
             return RunnerStatus.NeedReplan;
         }

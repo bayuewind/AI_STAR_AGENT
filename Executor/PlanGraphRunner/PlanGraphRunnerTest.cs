@@ -35,10 +35,7 @@ class PlanGraphRunnerTest
 
         while (tickId < maxTicks)
         {
-            // 推进 tool dispatcher 的 tick
-            toolDispatcher.Tick();
-
-            // 执行 runner 的 tick
+            // 执行 runner 的 tick（tick 驱动统一由 Runner 控制）
             var status = runner.Tick(tickId);
 
             // 根据状态决定下一步

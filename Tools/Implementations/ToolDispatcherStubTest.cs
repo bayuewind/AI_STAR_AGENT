@@ -19,20 +19,18 @@ class ToolDispatcherStubTest
 
         // 测试1: NavigateTo - 60 ticks 后 ok
         Console.WriteLine("测试1: NavigateTo - 60 ticks 后 ok");
-        var handle1 = dispatcher.Begin("node_nav", "NavigateTo", new Dictionary<string, object> { { "location", "Town" } });
-        Console.WriteLine($"  开始 tick: {dispatcher.CurrentTick}, handle: {handle1}");
+        int tickId = 0;
+        var handle1 = dispatcher.Begin("node_nav", "NavigateTo", new Dictionary<string, object> { { "location", "Town" } }, tickId);
+        Console.WriteLine($"  开始 tick: {tickId}, handle: {handle1}");
         
         bool navReady = false;
-        ToolResult? navResult = null;
-        for (int tick = 0; tick < 70; tick++)
+        for (int tick = tickId; tick < 70; tick++)
         {
-            dispatcher.Tick();
-            var (ready, result) = dispatcher.Poll(handle1);
+            var (ready, result) = dispatcher.Poll(handle1, tick);
             if (ready && !navReady)
             {
                 navReady = true;
-                navResult = result;
-                Console.WriteLine($"  ✓ 在第 {tick + 1} tick 就绪（期望 60 ticks）");
+                Console.WriteLine($"  ✓ 在第 {tick} tick 就绪（期望 60 ticks）");
                 if (result != null && result.Ok && result.Tool == "NavigateTo")
                 {
                     Console.WriteLine($"    结果: Ok={result.Ok}, Tool={result.Tool}");
@@ -55,21 +53,18 @@ class ToolDispatcherStubTest
         // 测试2: ShopBuy - 10 ticks 后 ok（默认）
         Console.WriteLine("\n测试2: ShopBuy - 10 ticks 后 ok（默认）");
         dispatcher.ResetShopBuyConfig(); // 确保是默认配置
-        var handle2 = dispatcher.Begin("node_buy", "ShopBuy", new Dictionary<string, object> { { "item", "ParsnipSeeds" }, { "count", 10 } });
-        Console.WriteLine($"  开始 tick: {dispatcher.CurrentTick}, handle: {handle2}");
+        tickId = 70;
+        var handle2 = dispatcher.Begin("node_buy", "ShopBuy", new Dictionary<string, object> { { "item", "ParsnipSeeds" }, { "count", 10 } }, tickId);
+        Console.WriteLine($"  开始 tick: {tickId}, handle: {handle2}");
         
         bool buyReady = false;
-        ToolResult? buyResult = null;
-        int startTick2 = dispatcher.CurrentTick;
-        for (int tick = 0; tick < 20; tick++)
+        for (int tick = tickId; tick < tickId + 20; tick++)
         {
-            dispatcher.Tick();
-            var (ready, result) = dispatcher.Poll(handle2);
+            var (ready, result) = dispatcher.Poll(handle2, tick);
             if (ready && !buyReady)
             {
                 buyReady = true;
-                buyResult = result;
-                int elapsed = dispatcher.CurrentTick - startTick2;
+                int elapsed = tick - tickId;
                 Console.WriteLine($"  ✓ 在第 {elapsed} tick 就绪（期望 10 ticks）");
                 if (result != null && result.Ok && result.Tool == "ShopBuy")
                 {
@@ -93,21 +88,18 @@ class ToolDispatcherStubTest
         // 测试3: ShopBuy - 配置错误情况（menu_not_open）
         Console.WriteLine("\n测试3: ShopBuy - 配置错误情况（menu_not_open）");
         dispatcher.ConfigureShopBuyResult(ok: false, errorCode: "menu_not_open", errorDetail: "Shop menu is not open");
-        var handle3 = dispatcher.Begin("node_buy_error", "ShopBuy", new Dictionary<string, object>());
-        Console.WriteLine($"  开始 tick: {dispatcher.CurrentTick}, handle: {handle3}");
+        tickId = 100;
+        var handle3 = dispatcher.Begin("node_buy_error", "ShopBuy", new Dictionary<string, object>(), tickId);
+        Console.WriteLine($"  开始 tick: {tickId}, handle: {handle3}");
         
         bool buyErrorReady = false;
-        ToolResult? buyErrorResult = null;
-        int startTick3 = dispatcher.CurrentTick;
-        for (int tick = 0; tick < 20; tick++)
+        for (int tick = tickId; tick < tickId + 20; tick++)
         {
-            dispatcher.Tick();
-            var (ready, result) = dispatcher.Poll(handle3);
+            var (ready, result) = dispatcher.Poll(handle3, tick);
             if (ready && !buyErrorReady)
             {
                 buyErrorReady = true;
-                buyErrorResult = result;
-                int elapsed = dispatcher.CurrentTick - startTick3;
+                int elapsed = tick - tickId;
                 Console.WriteLine($"  ✓ 在第 {elapsed} tick 就绪（期望 10 ticks）");
                 if (result != null && !result.Ok && result.Error != null && result.Error.Code == "menu_not_open")
                 {
@@ -128,26 +120,23 @@ class ToolDispatcherStubTest
             failed++;
         }
 
-        // 测试4: ShopBuy - 配置错误情况（insufficient_gold）
-        Console.WriteLine("\n测试4: ShopBuy - 配置错误情况（insufficient_gold）");
-        dispatcher.ConfigureShopBuyResult(ok: false, errorCode: "insufficient_gold", errorDetail: "Not enough gold");
-        var handle4 = dispatcher.Begin("node_buy_gold", "ShopBuy", new Dictionary<string, object>());
-        Console.WriteLine($"  开始 tick: {dispatcher.CurrentTick}, handle: {handle4}");
+        // 测试4: 通用配置器 - NavigateTo 配置为失败
+        Console.WriteLine("\n测试4: 通用配置器 - NavigateTo 配置为失败（unreachable）");
+        dispatcher.ConfigureToolResult("NavigateTo", ok: false, errorCode: "unreachable", errorDetail: "Target is unreachable");
+        tickId = 120;
+        var handle4 = dispatcher.Begin("node_nav_fail", "NavigateTo", new Dictionary<string, object>(), tickId);
+        Console.WriteLine($"  开始 tick: {tickId}, handle: {handle4}");
         
-        bool buyGoldReady = false;
-        ToolResult? buyGoldResult = null;
-        int startTick4 = dispatcher.CurrentTick;
-        for (int tick = 0; tick < 20; tick++)
+        bool navFailReady = false;
+        for (int tick = tickId; tick < tickId + 70; tick++)
         {
-            dispatcher.Tick();
-            var (ready, result) = dispatcher.Poll(handle4);
-            if (ready && !buyGoldReady)
+            var (ready, result) = dispatcher.Poll(handle4, tick);
+            if (ready && !navFailReady)
             {
-                buyGoldReady = true;
-                buyGoldResult = result;
-                int elapsed = dispatcher.CurrentTick - startTick4;
-                Console.WriteLine($"  ✓ 在第 {elapsed} tick 就绪（期望 10 ticks）");
-                if (result != null && !result.Ok && result.Error != null && result.Error.Code == "insufficient_gold")
+                navFailReady = true;
+                int elapsed = tick - tickId;
+                Console.WriteLine($"  ✓ 在第 {elapsed} tick 就绪（期望 60 ticks）");
+                if (result != null && !result.Ok && result.Error != null && result.Error.Code == "unreachable")
                 {
                     Console.WriteLine($"    结果: Ok={result.Ok}, Error.Code={result.Error.Code}");
                     passed++;
@@ -160,108 +149,70 @@ class ToolDispatcherStubTest
                 break;
             }
         }
-        if (!buyGoldReady)
+        if (!navFailReady)
         {
-            Console.WriteLine("  ✗ 10 ticks 后仍未就绪");
+            Console.WriteLine("  ✗ 60 ticks 后仍未就绪");
             failed++;
         }
 
-        // 测试5: 其它工具 - 5 ticks 后 ok
-        Console.WriteLine("\n测试5: 其它工具（OpenMenu）- 5 ticks 后 ok");
-        dispatcher.ResetShopBuyConfig();
-        var handle5 = dispatcher.Begin("node_open", "OpenMenu", new Dictionary<string, object> { { "menu", "shop" } });
-        Console.WriteLine($"  开始 tick: {dispatcher.CurrentTick}, handle: {handle5}");
-        
-        bool otherReady = false;
-        ToolResult? otherResult = null;
-        int startTick5 = dispatcher.CurrentTick;
-        for (int tick = 0; tick < 15; tick++)
+        // 测试5: 无效 handle - 应该返回 invalid_handle
+        Console.WriteLine("\n测试5: 无效 handle - 应该返回 ready=true 且 error.code=invalid_handle");
+        tickId = 200;
+        var (ready5, result5) = dispatcher.Poll("invalid_handle_12345", tickId);
+        if (ready5 && result5 != null && !result5.Ok && result5.Error != null && result5.Error.Code == "invalid_handle")
         {
-            dispatcher.Tick();
-            var (ready, result) = dispatcher.Poll(handle5);
-            if (ready && !otherReady)
+            Console.WriteLine("  ✓ 通过: 无效 handle 返回 invalid_handle 错误");
+            passed++;
+        }
+        else
+        {
+            Console.WriteLine($"  ✗ 失败: 期望 ready=true 且 error.code=invalid_handle");
+            failed++;
+        }
+
+        // 测试6: Cancel 语义 - 应该返回 canceled
+        Console.WriteLine("\n测试6: Cancel 语义 - 应该返回 ready=true 且 error.code=canceled");
+        dispatcher.ResetToolConfig(); // 重置所有配置
+        tickId = 210;
+        var handle6 = dispatcher.Begin("node_cancel", "OpenMenu", new Dictionary<string, object>(), tickId);
+        dispatcher.Cancel(handle6, tickId);
+        var (ready6, result6) = dispatcher.Poll(handle6, tickId + 1);
+        if (ready6 && result6 != null && !result6.Ok && result6.Error != null && result6.Error.Code == "canceled")
+        {
+            Console.WriteLine("  ✓ 通过: Cancel 后返回 canceled 错误");
+            passed++;
+        }
+        else
+        {
+            Console.WriteLine($"  ✗ 失败: 期望 ready=true 且 error.code=canceled");
+            failed++;
+        }
+
+        // 测试7: Telemetry 验证
+        Console.WriteLine("\n测试7: Telemetry 验证 - 应该包含 tick/node_id/tool");
+        dispatcher.ResetToolConfig();
+        tickId = 220;
+        var handle7 = dispatcher.Begin("node_tele", "TestTool", new Dictionary<string, object>(), tickId);
+        for (int tick = tickId; tick < tickId + 10; tick++)
+        {
+            var (ready, result) = dispatcher.Poll(handle7, tick);
+            if (ready && result != null)
             {
-                otherReady = true;
-                otherResult = result;
-                int elapsed = dispatcher.CurrentTick - startTick5;
-                Console.WriteLine($"  ✓ 在第 {elapsed} tick 就绪（期望 5 ticks）");
-                if (result != null && result.Ok && result.Tool == "OpenMenu")
+                if (result.Telemetry != null && 
+                    result.Telemetry.ContainsKey("tick") && 
+                    result.Telemetry.ContainsKey("node_id") && 
+                    result.Telemetry.ContainsKey("tool"))
                 {
-                    Console.WriteLine($"    结果: Ok={result.Ok}, Tool={result.Tool}");
+                    Console.WriteLine($"  ✓ 通过: Telemetry 包含必要字段: tick={result.Telemetry["tick"]}, node_id={result.Telemetry["node_id"]}, tool={result.Telemetry["tool"]}");
                     passed++;
                 }
                 else
                 {
-                    Console.WriteLine($"    ✗ 结果不正确");
+                    Console.WriteLine("  ✗ 失败: Telemetry 缺少必要字段");
                     failed++;
                 }
                 break;
             }
-        }
-        if (!otherReady)
-        {
-            Console.WriteLine("  ✗ 5 ticks 后仍未就绪");
-            failed++;
-        }
-
-        // 测试6: 多个并发任务
-        Console.WriteLine("\n测试6: 多个并发任务");
-        dispatcher.ResetShopBuyConfig();
-        var handles = new List<string>
-        {
-            dispatcher.Begin("node1", "NavigateTo", new Dictionary<string, object>()),
-            dispatcher.Begin("node2", "ShopBuy", new Dictionary<string, object>()),
-            dispatcher.Begin("node3", "OpenMenu", new Dictionary<string, object>())
-        };
-        Console.WriteLine($"  创建了 3 个任务: NavigateTo(60), ShopBuy(10), OpenMenu(5)");
-        
-        var completed = new HashSet<string>();
-        int maxTicks = 70;
-        for (int tick = 0; tick < maxTicks; tick++)
-        {
-            dispatcher.Tick();
-            foreach (var handle in handles)
-            {
-                if (!completed.Contains(handle))
-                {
-                    var (ready, result) = dispatcher.Poll(handle);
-                    if (ready && result != null)
-                    {
-                        completed.Add(handle);
-                        Console.WriteLine($"  Tick {dispatcher.CurrentTick}: {result.Tool} 完成 (Ok={result.Ok})");
-                    }
-                }
-            }
-            if (completed.Count == handles.Count)
-            {
-                break;
-            }
-        }
-        if (completed.Count == handles.Count)
-        {
-            Console.WriteLine("  ✓ 所有任务都完成了");
-            passed++;
-        }
-        else
-        {
-            Console.WriteLine($"  ✗ 只有 {completed.Count}/{handles.Count} 个任务完成");
-            failed++;
-        }
-
-        // 测试7: Poll 在未就绪时返回 (false, null)
-        Console.WriteLine("\n测试7: Poll 在未就绪时返回 (false, null)");
-        dispatcher.ResetShopBuyConfig();
-        var handle7 = dispatcher.Begin("node_test", "NavigateTo", new Dictionary<string, object>());
-        var (ready7, result7) = dispatcher.Poll(handle7);
-        if (!ready7 && result7 == null)
-        {
-            Console.WriteLine("  ✓ 未就绪时返回 (false, null)");
-            passed++;
-        }
-        else
-        {
-            Console.WriteLine($"  ✗ 期望 (false, null)，实际 (ready={ready7}, result={result7})");
-            failed++;
         }
 
         // 总结
@@ -272,7 +223,7 @@ class ToolDispatcherStubTest
 
         if (failed == 0)
         {
-            Console.WriteLine("\n✅ 所有测试通过！ToolDispatcherStub 能正确延迟几 tick 返回结果。");
+            Console.WriteLine("\n✅ 所有测试通过！ToolDispatcherStub 改进版工作正常。");
         }
         else
         {

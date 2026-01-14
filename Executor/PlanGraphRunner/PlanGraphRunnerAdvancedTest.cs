@@ -59,7 +59,6 @@ class PlanGraphRunnerAdvancedTest
 
         while (tickId < maxTicks)
         {
-            toolDispatcher.Tick();
             var status = runner.Tick(tickId);
 
             if (status == RunnerStatus.Done)
@@ -106,7 +105,6 @@ class PlanGraphRunnerAdvancedTest
         Console.WriteLine($"初始计划: {plan1.PlanId}, 起始节点: {plan1.StartNodeId}");
 
         // 开始执行
-        toolDispatcher.Tick();
         var status1 = runner.Tick(0);
         Console.WriteLine($"Tick 0: 状态 = {status1}");
 
@@ -122,7 +120,7 @@ class PlanGraphRunnerAdvancedTest
         plan2.Nodes.Add(newStep1);
         plan2.Nodes.Add(Node.CreateFinishGoal("new_done"));
 
-        runner.ReplacePlan(plan2);
+        runner.ReplacePlan(plan2, tickId: 1);
         Console.WriteLine($"新计划: {plan2.PlanId}, 起始节点: {plan2.StartNodeId}");
 
         // 继续执行新计划
@@ -132,7 +130,6 @@ class PlanGraphRunnerAdvancedTest
 
         while (tickId < maxTicks)
         {
-            toolDispatcher.Tick();
             var status = runner.Tick(tickId);
 
             if (status == RunnerStatus.Done)
