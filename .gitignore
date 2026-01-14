@@ -1,0 +1,52 @@
+## .NET / C# 构建产物
+bin/
+obj/
+*.dll
+*.exe
+*.pdb
+*.cache
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+## Visual Studio / Rider
+.vs/
+.idea/
+*.swp
+*.swo
+*~
+
+## NuGet
+packages/
+*.nupkg
+*.snupkg
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+## 测试结果
+TestResults/
+[Tt]est[Rr]esult*/
+*.trx
+*.coverage
+*.coveragexml
+
+## 构建日志
+*.log
+*.tlog
+
+## 临时文件
+*.tmp
+*.temp
+*.bak
+*.swp
+
+## macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+## 其他
+*.orig
+*.rej

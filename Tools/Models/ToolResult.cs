@@ -1,4 +1,4 @@
-namespace Tools.ToolResult;
+namespace Tools.Models;
 
 /// <summary>
 /// ToolResult - 工具执行结果

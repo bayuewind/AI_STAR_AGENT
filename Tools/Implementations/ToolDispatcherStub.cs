@@ -1,7 +1,7 @@
-using Tools.IToolDispatcher;
-using Tools.ToolResult;
+using Tools.Interfaces;
+using Tools.Models;
 
-namespace Tools.ToolDispatcherStub;
+namespace Tools.Implementations;
 
 /// <summary>
 /// ToolDispatcherStub - 工具调度器存根实现（用于测试）

@@ -1,6 +1,6 @@
-using Tools.ToolResult;
+using Tools.Models;
 
-namespace Tools.IToolDispatcher;
+namespace Tools.Interfaces;
 
 /// <summary>
 /// IToolDispatcher - 工具调度器接口
