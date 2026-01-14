@@ -5,7 +5,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <StartupObject>Tools.Models.Program</StartupObject>
+    <StartupObject>Tools.Implementations.ToolDispatcherStubTest</StartupObject>
   </PropertyGroup>
 
 </Project>
