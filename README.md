@@ -70,6 +70,18 @@ The project now includes a fully integrated simulation that mimics the Stardew V
    dotnet run --project Agent/Agent.csproj
    ```
 
+### Running as a Real SMAPI Mod
+
+To run the agent inside Stardew Valley:
+
+1.  **Build the Mod**:
+    ```bash
+    dotnet build StardewAgentMod/StardewAgentMod.csproj
+    ```
+2.  **Deploy**: Copy the build output to your game's `Mods` folder.
+3.  **Configure**: Edit `config.json` in the mod folder to set your `OpenAiApiKey`.
+4.  **Play**: Press `F5` in-game to trigger the agent.
+
 ## Status
 
 **Current Version:** v2 (Phases 1-3 Complete)
