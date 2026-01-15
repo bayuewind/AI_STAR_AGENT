@@ -15,6 +15,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Memory", "Memory\Memory.csp
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Core", "Core\Core.csproj", "{864939ED-018A-4570-BF15-57B2CA4D3DBF}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Perception", "Perception\Perception.csproj", "{8481C478-CF76-4E54-A707-991ACE8CED21}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -97,6 +99,18 @@ Global
 		{864939ED-018A-4570-BF15-57B2CA4D3DBF}.Release|x64.Build.0 = Release|Any CPU
 		{864939ED-018A-4570-BF15-57B2CA4D3DBF}.Release|x86.ActiveCfg = Release|Any CPU
 		{864939ED-018A-4570-BF15-57B2CA4D3DBF}.Release|x86.Build.0 = Release|Any CPU
+		{8481C478-CF76-4E54-A707-991ACE8CED21}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8481C478-CF76-4E54-A707-991ACE8CED21}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8481C478-CF76-4E54-A707-991ACE8CED21}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{8481C478-CF76-4E54-A707-991ACE8CED21}.Debug|x64.Build.0 = Debug|Any CPU
+		{8481C478-CF76-4E54-A707-991ACE8CED21}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{8481C478-CF76-4E54-A707-991ACE8CED21}.Debug|x86.Build.0 = Debug|Any CPU
+		{8481C478-CF76-4E54-A707-991ACE8CED21}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8481C478-CF76-4E54-A707-991ACE8CED21}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8481C478-CF76-4E54-A707-991ACE8CED21}.Release|x64.ActiveCfg = Release|Any CPU
+		{8481C478-CF76-4E54-A707-991ACE8CED21}.Release|x64.Build.0 = Release|Any CPU
+		{8481C478-CF76-4E54-A707-991ACE8CED21}.Release|x86.ActiveCfg = Release|Any CPU
+		{8481C478-CF76-4E54-A707-991ACE8CED21}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

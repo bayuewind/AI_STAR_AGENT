@@ -51,9 +51,21 @@ public class MapObject
 
 public class WorldState
 {
+    public int TimeOfDayRaw { get; set; } = 600;
     public string TimeOfDay { get; set; } = "06:00";
     public string Season { get; set; } = "Spring";
     public int DayOfMonth { get; set; } = 1;
+    public int Year { get; set; } = 1;
+    public string DayOfWeek { get; set; } = "Mon";
     public string Weather { get; set; } = "Sun";
+    public bool IsRaining { get; set; }
     public bool IsFestivalDay { get; set; }
+}
+
+public class MenuState
+{
+    public bool IsOpen { get; set; }
+    public string? MenuType { get; set; } // e.g., ShopMenu, DialogueBox
+    public bool IsShopMenu { get; set; }
+    public bool IsDialogue { get; set; }
 }

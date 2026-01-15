@@ -13,7 +13,7 @@ public class PlanParser
         _options = new JsonSerializerOptions
         {
             PropertyNameCaseInsensitive = true,
-            PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower, // Align with LLM typical output
+            // PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower, // Not available in .NET 6
             AllowTrailingCommas = true,
             ReadCommentHandling = JsonCommentHandling.Skip
         };
