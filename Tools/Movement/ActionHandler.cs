@@ -6,7 +6,7 @@ using StardewValley.TerrainFeatures;
 
 namespace Tools.Movement
 {
-    interface IActionHandler
+    public interface IActionHandler
     {
         public void cancelAction();
         public void updateTarget(Vector2 target);
@@ -15,7 +15,7 @@ namespace Tools.Movement
         public string toString();
     }
 
-    class ActionHandler : IActionHandler
+    public class ActionHandler : IActionHandler
     {
         public bool isVerbose = false;
         public Vector2 target;

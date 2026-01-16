@@ -19,6 +19,7 @@ public class SmapiToolDispatcher : IToolDispatcher
         public Dictionary<string, object> Args { get; set; } = new();
         public int StartTick { get; set; }
         public int Phase { get; set; } = 0;
+        public Dictionary<string, object> StateData { get; set; } = new(); // For storing intermediate state like route plan
         public object? Context { get; set; } // Store tool-specific state (e.g. path controller)
     }
 
@@ -26,6 +27,8 @@ public class SmapiToolDispatcher : IToolDispatcher
     private readonly IMonitor _monitor;
     private readonly IReflectionHelper? _reflection; // Optional, for advanced access if needed
     private readonly MovementController _movementController;
+    private readonly ActionHandler _actionHandler;
+    private readonly GlobalRoutePlanner _routePlanner;
     private WaterBotController? _waterBot;
 
     // Constructor for DI
@@ -38,6 +41,12 @@ public class SmapiToolDispatcher : IToolDispatcher
         TileUtil.SetMonitor(monitor);
         var movementConfig = new MovementConfig(); // Default config for now
         _movementController = new MovementController(monitor, movementConfig);
+        _actionHandler = new ActionHandler(monitor);
+        _routePlanner = new GlobalRoutePlanner(monitor);
+        // Load POI Database
+        string jsonPath = Path.Combine(Environment.GetEnvironmentVariable("HOME") ?? "", "Desktop/AI_STAR_Refer/MapTeleport/assets/Locations.json");
+        _routePlanner.LoadLocations(jsonPath);
+
         MovementPatcher.ApplyPatches(monitor);
     }
 
@@ -194,7 +203,30 @@ public class SmapiToolDispatcher : IToolDispatcher
         if (!task.Args.TryGetValue("Location", out var locNameObj)) return;
         string targetLocName = locNameObj.ToString()!;
         
-        // Pathfinding initialization logic would be placed here
+        _monitor.Log($"[NavigateTo] Request to go to: {targetLocName}", LogLevel.Info);
+        
+        // Use GlobalRoutePlanner to resolve the location
+        var dest = _routePlanner.GetDestination(targetLocName);
+        
+        if (dest.mapName == null)
+        {
+            _monitor.Log($"[NavigateTo] Unknown location: {targetLocName}", LogLevel.Warn);
+            // Fallback: try to treat input as a raw map name
+            dest = (targetLocName, null);
+        }
+
+        task.StateData["TargetMap"] = dest.mapName;
+        if (dest.tile.HasValue)
+        {
+            task.StateData["TargetX"] = (int)dest.tile.Value.X;
+            task.StateData["TargetY"] = (int)dest.tile.Value.Y;
+        }
+        else
+        {
+            task.StateData["UseDefaultSpawn"] = true;
+        }
+        
+        task.Phase = 0; // 0: Planning, 1: Moving, 2: Warping
     }
 
     private (bool, ToolResult?) PollNavigation(TaskState task, int tickId)
@@ -230,18 +262,35 @@ public class SmapiToolDispatcher : IToolDispatcher
 
     private (bool, ToolResult?) PollInteract(TaskState task, int tickId)
     {
+        // Use ActionHandler to perform 'physical' interaction check
+        // We set target to the tile in front of the player (GrabTile)
+        // because the bot usually faces the target after MoveTo.
+        
+        Vector2 grabTile = Game1.player.GetGrabTile();
+        _actionHandler.updateTarget(Game1.player.GetToolLocation(grabTile));
+        
+        bool success = _actionHandler.tryDoAction();
+        
+        // Also check if a menu opened, which counts as success
         if (Game1.activeClickableMenu != null)
         {
-            // Menu is open, interaction considered complete
+            success = true;
         }
 
-        if (task.Phase == 0)
+        if (success)
         {
-            task.Phase++;
-            return (false, null);
+            return (true, ToolResult.Success(task.NodeId, "Interact"));
+        }
+        
+        // Retry a few times if needed, or just return success if we assume action was "attempted"
+        // But for "Open Door" or "Open Shop", we really want it to happen.
+        // Let's try for a few ticks.
+        if (tickId - task.StartTick > 60) // 1 second timeout for simple click
+        {
+             return (true, ToolResult.Failure(task.NodeId, "Interact", "timeout", "Interact failed to trigger anything"));
         }
 
-        return (true, ToolResult.Success(task.NodeId, "Interact"));
+        return (false, null);
     }
 
     private (bool, ToolResult?) PollWaitUntil(TaskState task, int tickId)
@@ -273,12 +322,54 @@ public class SmapiToolDispatcher : IToolDispatcher
             
         string itemId = itemIdObj.ToString()!;
         int amount = task.Args.ContainsKey("Amount") ? Convert.ToInt32(task.Args["Amount"]) : 1;
+        
+        // Logic B: Direct Data Transaction
+        ISalable? targetItem = null;
+        int price = 0;
 
-        int price = 100;
-        if (Game1.player.Money < price * amount)
+        foreach(var kvp in shopMenu.itemPriceAndStock)
         {
-            return (true, ToolResult.Failure(task.NodeId, "ShopBuy", "insufficient_gold", "Not enough money"));
+            ISalable item = kvp.Key;
+            var stockInfo = kvp.Value; // ItemStockInformation
+            
+            // Try to match by ID or Name
+            // Note: ISalable strictly doesn't always have ItemId in interface depending on version
+            // Cast to Item if possible
+            string? currentId = (item as StardewValley.Item)?.ItemId ?? item.Name;
+            
+            if (currentId == itemId || item.Name == itemId || item.DisplayName == itemId) 
+            {
+                targetItem = item;
+                price = stockInfo.Price;
+                break;
+            }
         }
+
+        if (targetItem == null)
+        {
+             return (true, ToolResult.Failure(task.NodeId, "ShopBuy", "item_not_found", $"Item '{itemId}' not found in shop"));
+        }
+
+        int totalCost = price * amount;
+        if (Game1.player.Money < totalCost)
+        {
+            return (true, ToolResult.Failure(task.NodeId, "ShopBuy", "insufficient_gold", $"Need {totalCost}g but have {Game1.player.Money}g"));
+        }
+
+        // Execute Transaction
+        Game1.player.Money -= totalCost;
+        
+        for(int i=0; i<amount; i++)
+        {
+             ISalable boughtItem = targetItem.GetSalableInstance();
+             if (boughtItem is StardewValley.Item item)
+             {
+                 Game1.player.addItemByMenuIfNecessary(item);
+             }
+        }
+        
+        Game1.playSound("purchaseClick");
+        _monitor.Log($"[ShopBuy] Bought {amount}x {targetItem.DisplayName} for {totalCost}g", LogLevel.Info);
 
         return (true, ToolResult.Success(task.NodeId, "ShopBuy"));
     }
