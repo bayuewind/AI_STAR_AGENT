@@ -64,7 +64,7 @@ public class SmapiPerceptionProvider : IPerceptionProvider
     {
         // 在 Stub 模式下 Utility.isFestivalDay 可能不可用，这里做个简单的包装
         bool isFestival = false;
-        try { isFestival = StardewModdingAPI.Utility.isFestivalDay(Game1.dayOfMonth, Game1.currentSeason); } catch {}
+        try { isFestival = StardewValley.Utility.isFestivalDay(Game1.dayOfMonth, Game1.season); } catch {}
 
         return new WorldState
         {

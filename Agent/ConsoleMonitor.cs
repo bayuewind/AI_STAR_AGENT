@@ -1,10 +1,13 @@
 using StardewModdingAPI;
+using VerboseLogStringHandler = StardewModdingAPI.Framework.Logging.VerboseLogStringHandler;
 
 namespace Agent;
 
 public class ConsoleMonitor : IMonitor
 {
-    public void Log(string msg, LogLevel level)
+    public bool IsVerbose { get; set; } = false;
+
+    public void Log(string msg, LogLevel level = LogLevel.Debug)
     {
         var color = level switch
         {
@@ -21,5 +24,22 @@ public class ConsoleMonitor : IMonitor
         Console.ForegroundColor = color;
         Console.WriteLine($"[{level}] {msg}");
         Console.ForegroundColor = prevColor;
+    }
+
+    public void LogOnce(string message, LogLevel level = LogLevel.Debug)
+    {
+        Log(message, level);
+    }
+
+    public void VerboseLog(string message)
+    {
+        if (IsVerbose)
+            Log(message, LogLevel.Trace);
+    }
+
+    public void VerboseLog(ref VerboseLogStringHandler message)
+    {
+        if (IsVerbose)
+            Log(message.ToString(), LogLevel.Trace);
     }
 }

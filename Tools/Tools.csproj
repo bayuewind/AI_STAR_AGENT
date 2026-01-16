@@ -3,12 +3,18 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <DefineConstants>SMAPI_AVAILABLE</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Pathoschild.Stardew.ModBuildConfig" Version="4.3.1" />
     <PackageReference Include="Lib.Harmony" Version="2.2.2" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\Core\Core.csproj" />
+    <ProjectReference Include="..\Core\Core.csproj">
+      <!-- Pass SMAPI_AVAILABLE to Core project when building from Tools -->
+      <SetTargetFramework>TargetFramework=net10.0</SetTargetFramework>
+      <GlobalPropertiesToRemove></GlobalPropertiesToRemove>
+      <AdditionalProperties>DefineConstants=SMAPI_AVAILABLE</AdditionalProperties>
+    </ProjectReference>
   </ItemGroup>
 </Project>

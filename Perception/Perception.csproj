@@ -3,15 +3,18 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <DefineConstants>SMAPI_AVAILABLE</DefineConstants>
     <EnableModDeploy>false</EnableModDeploy>
     <EnableModZip>false</EnableModZip>
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- <PackageReference Include="Pathoschild.Stardew.ModBuildConfig" Version="4.3.1" /> -->
+    <PackageReference Include="Pathoschild.Stardew.ModBuildConfig" Version="4.3.1" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Core\Core.csproj" />
+    <ProjectReference Include="..\Core\Core.csproj">
+      <AdditionalProperties>DefineConstants=SMAPI_AVAILABLE</AdditionalProperties>
+    </ProjectReference>
   </ItemGroup>
 </Project>

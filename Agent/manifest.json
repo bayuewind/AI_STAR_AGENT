@@ -1,0 +1,9 @@
+{
+    "Name": "AI Star Agent",
+    "Author": "AI Star Agent",
+    "Version": "1.0.0",
+    "Description": "AI Agent for Stardew Valley",
+    "UniqueID": "AIStarAgent.Agent",
+    "EntryDll": "Agent.dll",
+    "MinimumApiVersion": "4.0.0"
+}

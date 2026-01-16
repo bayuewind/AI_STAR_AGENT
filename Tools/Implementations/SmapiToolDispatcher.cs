@@ -115,7 +115,7 @@ public class SmapiToolDispatcher : IToolDispatcher
             // Cleanup logic
             if (task.ToolName == "NavigateTo")
             {
-                Game1.player.halt();
+                Game1.player.Halt();
                 Game1.player.controller = null;
             }
             else if (task.ToolName == "MoveTo" || task.ToolName == "MoveToNPC")
@@ -212,13 +212,13 @@ public class SmapiToolDispatcher : IToolDispatcher
                     
                     if (Math.Abs(currentTile.X - tx) <= 1 && Math.Abs(currentTile.Y - ty) <= 1)
                     {
-                        Game1.player.halt();
+                        Game1.player.Halt();
                         return (true, ToolResult.Success(task.NodeId, "NavigateTo"));
                     }
                 }
                 else
                 {
-                    Game1.player.halt();
+                    Game1.player.Halt();
                     return (true, ToolResult.Success(task.NodeId, "NavigateTo"));
                 }
             }

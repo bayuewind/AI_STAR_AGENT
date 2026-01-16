@@ -53,7 +53,11 @@ public class WaterBotController
         _path = new List<Group>();
         _order = new List<ActionableTile>();
         Status = WaterBotStatus.Idle;
+        _console = msg => Log(msg);  // Wrapper for ConsoleLog delegate
     }
+
+    // Wrapper for CropMap methods that need ConsoleLog delegate
+    private readonly ConsoleLog _console;
 
     /// <summary>
     /// Start the watering process. Called by AI Agent.
@@ -109,7 +113,7 @@ public class WaterBotController
             }
             else
             {
-                groupings = _map.findGroupings(Log);
+                groupings = _map.findGroupings(_console);
             }
 
             if (!IsActive) return false;
@@ -120,7 +124,7 @@ public class WaterBotController
             Status = WaterBotStatus.Planning;
             StatusMessage = "Planning optimal path...";
 
-            _path = _map.findGroupPath(Log, groupings);
+            _path = _map.findGroupPath(_console, groupings);
 
             if (_path.Count == 0)
             {
@@ -133,7 +137,7 @@ public class WaterBotController
             Status = WaterBotStatus.Watering;
             StatusMessage = $"Watering crops... (0/{TotalCrops})";
 
-            _order = _map.findFillPath(_path[_currentGroup], Log);
+            _order = _map.findFillPath(_path[_currentGroup], _console);
 
             if (!IsActive) return false;
 
@@ -296,7 +300,7 @@ public class WaterBotController
                 return;
             }
 
-            _order = _map.findFillPath(_path[_currentGroup], Log);
+            _order = _map.findFillPath(_path[_currentGroup], _console);
         }
 
         Game1.player.controller = new PathFindController(
@@ -327,7 +331,7 @@ public class WaterBotController
         StatusMessage = "Refilling watering can...";
 
         Tile playerLocation = _map.map[Game1.player.TilePoint.Y][Game1.player.TilePoint.X];
-        _refillStation = _map.getClosestRefill(playerLocation, Log);
+        _refillStation = _map.getClosestRefill(playerLocation, _console);
 
         if (!IsActive) return;
 

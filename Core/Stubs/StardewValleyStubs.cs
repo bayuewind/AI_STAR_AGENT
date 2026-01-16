@@ -1,3 +1,7 @@
+// These stubs are only used when the actual Stardew Valley / SMAPI assemblies are not available.
+// Projects that reference actual game assemblies should define the SMAPI_AVAILABLE symbol.
+#if !SMAPI_AVAILABLE
+
 namespace StardewValley
 {
     public class Game1
@@ -91,3 +95,5 @@ namespace Microsoft.Xna.Framework
     public struct Point { public int X; public int Y; }
     public struct Rectangle { public int X; public int Y; public int Width; public int Height; }
 }
+
+#endif

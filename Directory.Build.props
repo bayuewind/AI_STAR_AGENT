@@ -1,0 +1,8 @@
+<Project>
+  <!-- Global build properties that apply to all projects in this solution -->
+  <PropertyGroup>
+    <!-- Define SMAPI_AVAILABLE when building projects that depend on actual SMAPI -->
+    <!-- This suppresses the stub types in Core/Stubs/StardewValleyStubs.cs -->
+    <DefineConstants>$(DefineConstants);SMAPI_AVAILABLE</DefineConstants>
+  </PropertyGroup>
+</Project>

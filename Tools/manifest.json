@@ -1,0 +1,10 @@
+{
+  "Name": "AI Star Agent Tools",
+  "Author": "AI Star Agent",
+  "Version": "1.0.0",
+  "Description": "Tools module for AI Star Agent including WaterBot and movement controls",
+  "UniqueID": "AIStarAgent.Tools",
+  "EntryDll": "Tools.dll",
+  "MinimumApiVersion": "4.0.0",
+  "ContentPackFor": null
+}
