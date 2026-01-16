@@ -1,9 +1,0 @@
-{
-    "Name": "AI Star Agent Perception",
-    "Author": "AI Star Agent",
-    "Version": "1.0.0",
-    "Description": "Perception module for AI Star Agent",
-    "UniqueID": "AIStarAgent.Perception",
-    "EntryDll": "Perception.dll",
-    "MinimumApiVersion": "4.0.0"
-}
