@@ -15,8 +15,10 @@ namespace StardewAgentMod
     public class ModEntry : Mod
     {
         private AgentRuntime? _agent;
+        private SmapiToolDispatcher? _tools;
         private ModConfig _config = new();
         private int _tickCounter = 0;
+        private string? _debugToolHandle = null;
 
         /// <summary>The mod entry point, called after the mod is first loaded.</summary>
         /// <param name="helper">Provides simplified APIs for writing mods.</param>
@@ -28,6 +30,8 @@ namespace StardewAgentMod
             helper.Events.GameLoop.SaveLoaded += OnSaveLoaded;
             helper.Events.GameLoop.UpdateTicked += OnUpdateTicked;
             helper.Events.Input.ButtonPressed += OnButtonPressed;
+            
+            helper.ConsoleCommands.Add("agent_tool", "Run a tool directly. Usage: agent_tool <ToolName> [Key=Value]...", OnAgentToolCommand);
         }
 
         private void OnGameLaunched(object? sender, GameLaunchedEventArgs e)
@@ -36,8 +40,9 @@ namespace StardewAgentMod
             var monitor = this.Monitor;
             
             // 1. Perception & Tools (Real SMAPI Implementations)
+            // 1. Perception & Tools (Real SMAPI Implementations)
             var perception = new SmapiPerceptionProvider(monitor);
-            var tools = new SmapiToolDispatcher(monitor, this.Helper.Reflection); // Pass reflection helper if needed
+            _tools = new SmapiToolDispatcher(monitor, this.Helper.Reflection); 
 
             // 2. Brain (LLM)
             ILLMProvider llmProvider;
@@ -58,7 +63,8 @@ namespace StardewAgentMod
             var embedding = new EmbeddingProviderStub();
 
             // 4. Create Runtime
-            _agent = new AgentRuntime("player_1", tools, planner, perception, embedding);
+            // 4. Create Runtime
+            _agent = new AgentRuntime("player_1", _tools, planner, perception, embedding);
             
             monitor.Log("🤖 Stardew AI Agent initialized!", LogLevel.Info);
         }
@@ -85,6 +91,17 @@ namespace StardewAgentMod
             // So we just call Update().
             
             _agent.Update(_tickCounter);
+            
+            // Poll Debug Tool
+            if (_debugToolHandle != null && _tools != null)
+            {
+                var (ready, result) = _tools.Poll(_debugToolHandle, _tickCounter);
+                if (ready)
+                {
+                    this.Monitor.Log($"[DebugTool] Finished: {result?.Status} - {result?.Message}", LogLevel.Info);
+                    _debugToolHandle = null;
+                }
+            }
         }
 
         private void OnButtonPressed(object? sender, ButtonPressedEventArgs e)
@@ -109,6 +126,44 @@ namespace StardewAgentMod
                 this.Monitor.Log("Commander: STOP ALL", LogLevel.Warn);
                 _agent.GoalStack.Clear();
                 // We might need an Agent.Stop() method to cancel running tools immediately
+            }
+        }
+            }
+        }
+
+        private void OnAgentToolCommand(string command, string[] args)
+        {
+            if (_tools == null)
+            {
+                this.Monitor.Log("Tools not initialized.", LogLevel.Error);
+                return;
+            }
+            if (args.Length < 1)
+            {
+                this.Monitor.Log("Usage: agent_tool <ToolName> [Key=Value]...", LogLevel.Error);
+                return;
+            }
+
+            string toolName = args[0];
+            var toolArgs = new Dictionary<string, object>();
+            
+            for(int i=1; i<args.Length; i++)
+            {
+                var parts = args[i].Split('=');
+                if (parts.Length == 2)
+                {
+                    toolArgs[parts[0]] = parts[1];
+                }
+            }
+
+            try 
+            {
+                _debugToolHandle = _tools.Begin("debug_node", toolName, toolArgs, _tickCounter);
+                this.Monitor.Log($"[DebugTool] Started {toolName} (Handle: {_debugToolHandle})", LogLevel.Info);
+            }
+            catch(Exception ex)
+            {
+                this.Monitor.Log($"[DebugTool] Error starting tool: {ex.Message}", LogLevel.Error);
             }
         }
     }
