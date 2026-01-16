@@ -10,9 +10,12 @@ public class ToolResult
     public ActionDelta? Delta { get; set; }
 
     public static ToolResult Success(string nodeId, string tool) => new() { ActionNodeId = nodeId, Tool = tool, Ok = true };
+    public static ToolResult Success(string nodeId, string tool, Dictionary<string, object> data) => new() { ActionNodeId = nodeId, Tool = tool, Ok = true, Telemetry = data };
     public static ToolResult Failure(string nodeId, string tool, string code, string detail) => new() { ActionNodeId = nodeId, Tool = tool, Ok = false, Error = new ErrorInfo { Code = code, Detail = detail } };
+    public static ToolResult Failure(string nodeId, string tool, string code, string detail, Dictionary<string, object> data) => new() { ActionNodeId = nodeId, Tool = tool, Ok = false, Error = new ErrorInfo { Code = code, Detail = detail }, Telemetry = data };
     public static ToolResult Timeout(string nodeId, string tool) => Failure(nodeId, tool, "timeout", "Tool execution timed out");
 }
+
 
 public class ActionDelta
 {

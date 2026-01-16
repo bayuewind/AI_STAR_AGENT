@@ -1,0 +1,10 @@
+<Project>
+  <PropertyGroup>
+    <!-- Set a dummy game path to allow compilation without the actual game installed -->
+    <GamePath>/Users/dummy/StardewValley</GamePath>
+    <!-- Skip copying mod files to the game's Mods folder -->
+    <EnableModDeploy>false</EnableModDeploy>
+    <!-- Skip launching the game after build -->
+    <EnableModZip>false</EnableModZip>
+  </PropertyGroup>
+</Project>

@@ -5,6 +5,7 @@ using StardewValley;
 using StardewValley.Menus;
 using Microsoft.Xna.Framework;
 using Tools.Movement;
+using Tools.WaterBot;
 
 namespace Tools.Implementations;
 
@@ -25,6 +26,7 @@ public class SmapiToolDispatcher : IToolDispatcher
     private readonly IMonitor _monitor;
     private readonly IReflectionHelper? _reflection; // Optional, for advanced access if needed
     private readonly MovementController _movementController;
+    private WaterBotController? _waterBot;
 
     // Constructor for DI
     public SmapiToolDispatcher(IMonitor monitor, IReflectionHelper? reflection = null)
@@ -67,6 +69,9 @@ public class SmapiToolDispatcher : IToolDispatcher
             case "MoveToNPC":
                 StartMoveToNPC(task);
                 break;
+            case "WaterCrops":
+                StartWaterCrops(task);
+                break;
         }
 
         return handle;
@@ -89,6 +94,7 @@ public class SmapiToolDispatcher : IToolDispatcher
                 "Interact" => PollInteract(task, tickId),
                 "WaitUntil" => PollWaitUntil(task, tickId),
                 "ShopBuy" => PollShopBuy(task, tickId),
+                "WaterCrops" => PollWaterCrops(task, tickId),
                 "ConsoleLog" => (true, ToolResult.Success(task.NodeId, task.ToolName)),
                 _ => (true, ToolResult.Failure(task.NodeId, task.ToolName, "unknown_tool", $"Tool {task.ToolName} not implemented"))
             };
@@ -115,6 +121,10 @@ public class SmapiToolDispatcher : IToolDispatcher
             else if (task.ToolName == "MoveTo" || task.ToolName == "MoveToNPC")
             {
                 _movementController.Stop();
+            }
+            else if (task.ToolName == "WaterCrops")
+            {
+                _waterBot?.Stop();
             }
 
             _tasks.Remove(handle);
@@ -271,6 +281,89 @@ public class SmapiToolDispatcher : IToolDispatcher
         }
 
         return (true, ToolResult.Success(task.NodeId, "ShopBuy"));
+    }
+
+    private void StartWaterCrops(TaskState task)
+    {
+        // Parse optional config from args
+        var config = new WaterBotConfig();
+        
+        if (task.Args.TryGetValue("UseSmallGrouping", out var smallGroupObj))
+        {
+            config.UseSmallGrouping = Convert.ToBoolean(smallGroupObj);
+        }
+        if (task.Args.TryGetValue("RefillOnFinish", out var refillObj))
+        {
+            config.RefillOnFinish = Convert.ToBoolean(refillObj);
+        }
+        if (task.Args.TryGetValue("RefillIfLower", out var refillLowerObj))
+        {
+            config.RefillIfLower = Convert.ToInt32(refillLowerObj);
+        }
+        if (task.Args.TryGetValue("RedoPathOnRefill", out var redoPathObj))
+        {
+            config.RedoPathOnRefill = Convert.ToBoolean(redoPathObj);
+        }
+
+        _waterBot = new WaterBotController(_monitor, config);
+        bool started = _waterBot.Start();
+        
+        if (!started && _waterBot.Status == WaterBotStatus.Error)
+        {
+            _monitor.Log($"[WaterCrops] Failed to start: {_waterBot.StatusMessage}", LogLevel.Error);
+        }
+    }
+
+    private (bool, ToolResult?) PollWaterCrops(TaskState task, int tickId)
+    {
+        if (_waterBot == null)
+        {
+            return (true, ToolResult.Failure(task.NodeId, "WaterCrops", "not_initialized", "WaterBot not initialized"));
+        }
+
+        var result = _waterBot.GetResult();
+
+        // Check for completion or error states
+        if (result.IsCompleted || !result.IsActive)
+        {
+            var data = new Dictionary<string, object>
+            {
+                { "status", result.Status.ToString() },
+                { "message", result.StatusMessage },
+                { "cropsWatered", result.CropsWatered },
+                { "totalCrops", result.TotalCrops }
+            };
+
+            switch (result.Status)
+            {
+                case WaterBotStatus.Completed:
+                    return (true, ToolResult.Success(task.NodeId, "WaterCrops", data));
+                
+                case WaterBotStatus.Stopped:
+                    return (true, ToolResult.Failure(task.NodeId, "WaterCrops", "stopped", result.StatusMessage, data));
+                
+                case WaterBotStatus.Exhausted:
+                    return (true, ToolResult.Failure(task.NodeId, "WaterCrops", "exhausted", result.StatusMessage, data));
+                
+                case WaterBotStatus.NoWater:
+                    return (true, ToolResult.Failure(task.NodeId, "WaterCrops", "no_water", result.StatusMessage, data));
+                
+                case WaterBotStatus.Error:
+                    return (true, ToolResult.Failure(task.NodeId, "WaterCrops", "error", result.StatusMessage, data));
+                
+                default:
+                    return (true, ToolResult.Success(task.NodeId, "WaterCrops", data));
+            }
+        }
+
+        // Still in progress - timeout check (5 minutes = 18000 ticks approx at 60fps)
+        if (tickId - task.StartTick > 18000)
+        {
+            _waterBot.Stop();
+            return (true, ToolResult.Failure(task.NodeId, "WaterCrops", "timeout", "Watering timed out after 5 minutes"));
+        }
+
+        return (false, null);
     }
 
     #endregion
