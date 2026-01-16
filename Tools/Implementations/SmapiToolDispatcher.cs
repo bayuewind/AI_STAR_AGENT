@@ -231,32 +231,116 @@ public class SmapiToolDispatcher : IToolDispatcher
 
     private (bool, ToolResult?) PollNavigation(TaskState task, int tickId)
     {
-        if (task.Args.TryGetValue("Location", out var locNameObj))
+        // Ensure state data exists
+        if (!task.StateData.ContainsKey("TargetMap"))
         {
-            string targetLoc = locNameObj.ToString()!;
-            if (Game1.currentLocation?.NameOrUniqueName == targetLoc)
+            return (true, ToolResult.Failure(task.NodeId, "NavigateTo", "no_target", "Navigation target not set"));
+        }
+
+        string targetMap = (string)task.StateData["TargetMap"];
+        string currentMap = Game1.currentLocation?.NameOrUniqueName ?? "";
+
+        _monitor.Log($"[NavigateTo] Poll - Phase:{task.Phase}, Current:{currentMap}, Target:{targetMap}", LogLevel.Trace);
+
+        // Phase 0: Planning for current segment
+        if (task.Phase == 0)
+        {
+            if (currentMap == targetMap)
             {
-                if (task.Args.ContainsKey("TileX") && task.Args.ContainsKey("TileY"))
+                // We are in the correct map, move to specific tile if provided
+                if (task.StateData.ContainsKey("TargetX") && task.StateData.ContainsKey("TargetY"))
                 {
-                    int tx = Convert.ToInt32(task.Args["TileX"]);
-                    int ty = Convert.ToInt32(task.Args["TileY"]);
-                    Point currentTile = Game1.player.TilePoint;
-                    
-                    if (Math.Abs(currentTile.X - tx) <= 1 && Math.Abs(currentTile.Y - ty) <= 1)
-                    {
-                        Game1.player.Halt();
-                        return (true, ToolResult.Success(task.NodeId, "NavigateTo"));
-                    }
+                    int x = (int)task.StateData["TargetX"];
+                    int y = (int)task.StateData["TargetY"];
+                    _movementController.StartMoveTo(x * 64 + 32, y * 64 + 32); // Convert tile to pixel
+                    _monitor.Log($"[NavigateTo] Final leg: Moving to tile ({x}, {y}) in {currentMap}", LogLevel.Info);
+                    task.Phase = 1; // Moving to final destination
                 }
                 else
                 {
-                    Game1.player.Halt();
+                    // No specific tile, we are just 'in the right map'
+                    _monitor.Log($"[NavigateTo] Arrived at map: {targetMap}", LogLevel.Info);
                     return (true, ToolResult.Success(task.NodeId, "NavigateTo"));
+                }
+            }
+            else
+            {
+                // We need to route to next map via warp
+                var nextWarp = _routePlanner.FindNextWarp(currentMap, targetMap);
+                if (nextWarp == null)
+                {
+                    return (true, ToolResult.Failure(task.NodeId, "NavigateTo", "no_route", $"Cannot find route from {currentMap} to {targetMap}"));
+                }
+                
+                // Store current map to detect warp later
+                task.StateData["WarpFromMap"] = currentMap;
+                task.StateData["WarpToMap"] = nextWarp.TargetName;
+                
+                // Move to the warp tile
+                _movementController.StartMoveTo(nextWarp.X * 64 + 32, nextWarp.Y * 64 + 32);
+                _monitor.Log($"[NavigateTo] Segment: Moving to Warp at ({nextWarp.X}, {nextWarp.Y}) -> {nextWarp.TargetName}", LogLevel.Info);
+                task.Phase = 2; // Moving to Warp
+            }
+        }
+
+        // Phase 1: Moving to Final Destination (within target map)
+        if (task.Phase == 1)
+        {
+            if (_movementController.IsArrived)
+            {
+                _monitor.Log($"[NavigateTo] Arrived at final destination in {targetMap}", LogLevel.Info);
+                return (true, ToolResult.Success(task.NodeId, "NavigateTo"));
+            }
+            
+            // Timeout check (30 seconds)
+            if (tickId - task.StartTick > 1800)
+            {
+                return (true, ToolResult.Failure(task.NodeId, "NavigateTo", "timeout", "Movement timed out"));
+            }
+        }
+        
+        // Phase 2: Moving to Warp tile
+        if (task.Phase == 2)
+        {
+            if (_movementController.IsArrived)
+            {
+                // We are at warp tile. Wait for game to switch map.
+                task.Phase = 3; 
+                task.StateData["WarpWaitStart"] = tickId;
+                _monitor.Log("[NavigateTo] Reached warp tile, waiting for map switch...", LogLevel.Debug);
+            }
+            
+            // Timeout check (30 seconds)
+            if (tickId - task.StartTick > 1800)
+            {
+                return (true, ToolResult.Failure(task.NodeId, "NavigateTo", "timeout", "Movement to warp timed out"));
+            }
+        }
+        
+        // Phase 3: Waiting for Map Switch after walking into warp
+        if (task.Phase == 3)
+        {
+            string warpFromMap = (string)task.StateData["WarpFromMap"];
+            
+            if (Game1.currentLocation?.NameOrUniqueName != warpFromMap)
+            {
+                // Map changed!
+                _monitor.Log($"[NavigateTo] Map changed to {Game1.currentLocation?.NameOrUniqueName}. Re-planning.", LogLevel.Info);
+                task.Phase = 0; // Go back to planning for new map
+                task.StartTick = tickId; // Reset timer
+                _movementController.Stop(); // Reset movement state
+            }
+            else
+            {
+                // Still on the same map - timeout check
+                int warpWaitStart = (int)task.StateData["WarpWaitStart"];
+                if (tickId - warpWaitStart > 300) // 5 seconds
+                {
+                    return (true, ToolResult.Failure(task.NodeId, "NavigateTo", "warp_timeout", "Failed to warp within timeout"));
                 }
             }
         }
 
-        // Return incomplete status while navigation is in progress
         return (false, null);
     }
 
