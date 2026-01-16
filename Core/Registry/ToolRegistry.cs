@@ -119,6 +119,39 @@ public class ToolRegistry
                 new ToolErrorSchema { Code = "wrong_item", Description = "Cannot give this item." }
             }
         });
+
+        // 8. MoveTo
+        Register(new ToolSchema
+        {
+            Name = "MoveTo",
+            Description = "Moves the player to a specific tile coordinate on the current map.",
+            Parameters = new List<ToolParameter>
+            {
+                new ToolParameter { Name = "TileX", Type = "int", Description = "Target X tile coordinate.", Required = true },
+                new ToolParameter { Name = "TileY", Type = "int", Description = "Target Y tile coordinate.", Required = true }
+            },
+            PossibleErrors = new List<ToolErrorSchema>
+            {
+                new ToolErrorSchema { Code = "unreachable", Description = "Target location is not reachable." },
+                new ToolErrorSchema { Code = "timeout", Description = "Movement took too long." }
+            }
+        });
+
+        // 9. MoveToNPC
+        Register(new ToolSchema
+        {
+            Name = "MoveToNPC",
+            Description = "Moves the player to the current location of an NPC.",
+            Parameters = new List<ToolParameter>
+            {
+                new ToolParameter { Name = "NPCName", Type = "string", Description = "Name of the NPC.", Required = true }
+            },
+            PossibleErrors = new List<ToolErrorSchema>
+            {
+                new ToolErrorSchema { Code = "npc_not_found", Description = "NPC could not be found." },
+                new ToolErrorSchema { Code = "unreachable", Description = "NPC location is not reachable." }
+            }
+        });
     }
 
     public void Register(ToolSchema schema)

@@ -4,6 +4,7 @@ using StardewModdingAPI;
 using StardewValley;
 using StardewValley.Menus;
 using Microsoft.Xna.Framework;
+using Tools.Movement;
 
 namespace Tools.Implementations;
 
@@ -23,12 +24,19 @@ public class SmapiToolDispatcher : IToolDispatcher
     private readonly Dictionary<string, TaskState> _tasks = new();
     private readonly IMonitor _monitor;
     private readonly IReflectionHelper? _reflection; // Optional, for advanced access if needed
+    private readonly MovementController _movementController;
 
     // Constructor for DI
     public SmapiToolDispatcher(IMonitor monitor, IReflectionHelper? reflection = null)
     {
         _monitor = monitor;
         _reflection = reflection;
+        
+        // Initialize movement tools
+        TileUtil.SetMonitor(monitor);
+        var movementConfig = new MovementConfig(); // Default config for now
+        _movementController = new MovementController(monitor, movementConfig);
+        MovementPatcher.ApplyPatches(monitor);
     }
 
     public string Begin(string nodeId, string toolName, Dictionary<string, object> args, int tickId)
@@ -53,6 +61,12 @@ public class SmapiToolDispatcher : IToolDispatcher
             case "NavigateTo":
                 StartNavigation(task);
                 break;
+            case "MoveTo":
+                StartMoveTo(task);
+                break;
+            case "MoveToNPC":
+                StartMoveToNPC(task);
+                break;
         }
 
         return handle;
@@ -70,6 +84,8 @@ public class SmapiToolDispatcher : IToolDispatcher
             return task.ToolName switch
             {
                 "NavigateTo" => PollNavigation(task, tickId),
+                "MoveTo" => PollMoveTo(task, tickId),
+                "MoveToNPC" => PollMoveToNPC(task, tickId),
                 "Interact" => PollInteract(task, tickId),
                 "WaitUntil" => PollWaitUntil(task, tickId),
                 "ShopBuy" => PollShopBuy(task, tickId),
@@ -96,12 +112,72 @@ public class SmapiToolDispatcher : IToolDispatcher
                 Game1.player.halt();
                 Game1.player.controller = null;
             }
+            else if (task.ToolName == "MoveTo" || task.ToolName == "MoveToNPC")
+            {
+                _movementController.Stop();
+            }
 
             _tasks.Remove(handle);
         }
     }
 
     #region Tool Implementations
+
+    private void StartMoveTo(TaskState task)
+    {
+        if (task.Args.TryGetValue("TileX", out var xObj) && task.Args.TryGetValue("TileY", out var yObj))
+        {
+            int x = Convert.ToInt32(xObj);
+            int y = Convert.ToInt32(yObj);
+            _movementController.StartMoveTo(x, y);
+        }
+    }
+
+    private (bool, ToolResult?) PollMoveTo(TaskState task, int tickId)
+    {
+        _movementController.Update();
+        
+        if (_movementController.IsArrived)
+        {
+            return (true, ToolResult.Success(task.NodeId, "MoveTo"));
+        }
+        
+        // Timeout check (e.g. 30 seconds = 1800 ticks approx)
+        if (tickId - task.StartTick > 1800)
+        {
+             _movementController.Stop();
+             return (true, ToolResult.Failure(task.NodeId, "MoveTo", "timeout", "Movement timed out"));
+        }
+
+        return (false, null);
+    }
+
+    private void StartMoveToNPC(TaskState task)
+    {
+        if (task.Args.TryGetValue("NPCName", out var nameObj))
+        {
+            string npcName = nameObj.ToString()!;
+            _movementController.StartMoveToNPC(npcName);
+        }
+    }
+
+    private (bool, ToolResult?) PollMoveToNPC(TaskState task, int tickId)
+    {
+        _movementController.Update();
+
+        if (_movementController.IsArrived)
+        {
+            return (true, ToolResult.Success(task.NodeId, "MoveToNPC"));
+        }
+
+        if (tickId - task.StartTick > 1800)
+        {
+             _movementController.Stop();
+             return (true, ToolResult.Failure(task.NodeId, "MoveToNPC", "timeout", "Movement timed out"));
+        }
+
+        return (false, null);
+    }
 
     private void StartNavigation(TaskState task)
     {
