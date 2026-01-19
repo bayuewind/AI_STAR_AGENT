@@ -42,7 +42,7 @@ namespace StardewAgentMod
             // 1. Perception & Tools (Real SMAPI Implementations)
             // 1. Perception & Tools (Real SMAPI Implementations)
             var perception = new SmapiPerceptionProvider(monitor);
-            _tools = new SmapiToolDispatcher(monitor, this.Helper.Reflection); 
+            _tools = new SmapiToolDispatcher(monitor, this.Helper.DirectoryPath, this.Helper.Reflection); 
 
             // 2. Brain (LLM)
             ILLMProvider llmProvider;

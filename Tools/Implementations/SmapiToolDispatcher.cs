@@ -32,7 +32,7 @@ public class SmapiToolDispatcher : IToolDispatcher
     private WaterBotController? _waterBot;
 
     // Constructor for DI
-    public SmapiToolDispatcher(IMonitor monitor, IReflectionHelper? reflection = null)
+    public SmapiToolDispatcher(IMonitor monitor, string modPath, IReflectionHelper? reflection = null)
     {
         _monitor = monitor;
         _reflection = reflection;
@@ -43,8 +43,8 @@ public class SmapiToolDispatcher : IToolDispatcher
         _movementController = new MovementController(monitor, movementConfig);
         _actionHandler = new ActionHandler(monitor);
         _routePlanner = new GlobalRoutePlanner(monitor);
-        // Load POI Database
-        string jsonPath = Path.Combine(Environment.GetEnvironmentVariable("HOME") ?? "", "Desktop/AI_STAR_Refer/MapTeleport/assets/Locations.json");
+        // Load POI Database from mod assets
+        string jsonPath = Path.Combine(modPath, "assets", "Locations.json");
         _routePlanner.LoadLocations(jsonPath);
 
         MovementPatcher.ApplyPatches(monitor);
