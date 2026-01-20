@@ -252,7 +252,7 @@ public class SmapiToolDispatcher : IToolDispatcher
                 {
                     int x = (int)task.StateData["TargetX"];
                     int y = (int)task.StateData["TargetY"];
-                    _movementController.StartMoveTo(x * 64 + 32, y * 64 + 32); // Convert tile to pixel
+                    _movementController.StartMoveTo(x, y); // Pass tile coordinates
                     _monitor.Log($"[NavigateTo] Final leg: Moving to tile ({x}, {y}) in {currentMap}", LogLevel.Info);
                     task.Phase = 1; // Moving to final destination
                 }
@@ -266,9 +266,11 @@ public class SmapiToolDispatcher : IToolDispatcher
             else
             {
                 // We need to route to next map via warp
+                _monitor.Log($"[NavigateTo] Phase 0: Need to route from {currentMap} to {targetMap}", LogLevel.Debug);
                 var nextWarp = _routePlanner.FindNextWarp(currentMap, targetMap);
                 if (nextWarp == null)
                 {
+                    _monitor.Log($"[NavigateTo] Phase 0: No warp found!", LogLevel.Error);
                     return (true, ToolResult.Failure(task.NodeId, "NavigateTo", "no_route", $"Cannot find route from {currentMap} to {targetMap}"));
                 }
                 
@@ -277,7 +279,8 @@ public class SmapiToolDispatcher : IToolDispatcher
                 task.StateData["WarpToMap"] = nextWarp.TargetName;
                 
                 // Move to the warp tile
-                _movementController.StartMoveTo(nextWarp.X * 64 + 32, nextWarp.Y * 64 + 32);
+                _monitor.Log($"[NavigateTo] Phase 0: Found warp at ({nextWarp.X}, {nextWarp.Y}) -> {nextWarp.TargetName}", LogLevel.Debug);
+                _movementController.StartMoveTo(nextWarp.X, nextWarp.Y);
                 _monitor.Log($"[NavigateTo] Segment: Moving to Warp at ({nextWarp.X}, {nextWarp.Y}) -> {nextWarp.TargetName}", LogLevel.Info);
                 task.Phase = 2; // Moving to Warp
             }
@@ -286,6 +289,8 @@ public class SmapiToolDispatcher : IToolDispatcher
         // Phase 1: Moving to Final Destination (within target map)
         if (task.Phase == 1)
         {
+            _movementController.Update(); // Drive the movement
+            
             if (_movementController.IsArrived)
             {
                 _monitor.Log($"[NavigateTo] Arrived at final destination in {targetMap}", LogLevel.Info);
@@ -302,6 +307,22 @@ public class SmapiToolDispatcher : IToolDispatcher
         // Phase 2: Moving to Warp tile
         if (task.Phase == 2)
         {
+            string warpFromMap = (string)task.StateData["WarpFromMap"];
+            string currentMapNow = Game1.currentLocation?.NameOrUniqueName ?? "null";
+            
+            // Check if map changed during movement (warp happened!)
+            if (currentMapNow != warpFromMap)
+            {
+                _monitor.Log($"[NavigateTo] Phase 2: Map changed from {warpFromMap} to {Game1.currentLocation?.NameOrUniqueName}. Re-planning.", LogLevel.Info);
+                task.Phase = 0; // Go back to planning for new map
+                task.StartTick = tickId; // Reset timer
+                _movementController.Stop(); // Reset movement state
+                return (false, null); // Continue in next tick with Phase 0
+            }
+            
+            _monitor.Log($"[NavigateTo] Phase 2: warpFrom={warpFromMap}, current={currentMapNow}, IsMoving={_movementController.IsMoving}, IsArrived={_movementController.IsArrived}", LogLevel.Info);
+            _movementController.Update(); // Drive the movement
+            
             if (_movementController.IsArrived)
             {
                 // We are at warp tile. Wait for game to switch map.
