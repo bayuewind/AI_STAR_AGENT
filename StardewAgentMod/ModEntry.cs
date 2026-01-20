@@ -101,6 +101,45 @@ namespace StardewAgentMod
                 if (ready)
                 {
                     this.Monitor.Log($"[DebugTool] Finished: {(result?.Ok == true ? "Success" : "Failed")} - {(result?.Error?.Detail ?? "Completed")}", LogLevel.Info);
+                    
+                    // Print return data for verification
+                    if (result?.Telemetry != null && result.Telemetry.Count > 0)
+                    {
+                         this.Monitor.Log("  Data:", LogLevel.Info);
+                         foreach(var kvp in result.Telemetry)
+                         {
+                             if (kvp.Value is System.Collections.IEnumerable collection && !(kvp.Value is string))
+                             {
+                                 this.Monitor.Log($"    {kvp.Key}:", LogLevel.Info);
+                                 int count = 0;
+                                 foreach(var item in collection)
+                                 {
+                                     if (item is Dictionary<string, object> dict)
+                                     {
+                                         // Special formatting for Item Info
+                                         string slot = dict.ContainsKey("slotIndex") ? $"[{dict["slotIndex"]}]" : "";
+                                         string name = dict.ContainsKey("name") ? dict["name"].ToString() : "Empty";
+                                         string stack = dict.ContainsKey("stack") ? $"x{dict["stack"]}" : "";
+                                         string active = dict.ContainsKey("isActive") && (bool)dict["isActive"] ? "(Active)" : "";
+                                         
+                                         if (name != "Empty")
+                                             this.Monitor.Log($"      - {slot} {name} {stack} {active}", LogLevel.Info);
+                                     }
+                                     else
+                                     {
+                                         this.Monitor.Log($"      - {item}", LogLevel.Info);
+                                     }
+                                     count++;
+                                 }
+                                 if (count == 0) this.Monitor.Log("      (StartEmpty)", LogLevel.Info);
+                             }
+                             else
+                             {
+                                 this.Monitor.Log($"    {kvp.Key}: {kvp.Value}", LogLevel.Info);
+                             }
+                         }
+                    }
+                    
                     _debugToolHandle = null;
                 }
             }

@@ -81,6 +81,15 @@ public class SmapiToolDispatcher : IToolDispatcher
             case "WaterCrops":
                 StartWaterCrops(task);
                 break;
+            case "GetInventoryStatus":
+            case "GetHotbarItems":
+            case "GetBackpackItems":
+            case "GetCurrentActiveSlot":
+            case "SetActiveSlot":
+            case "SwapItemSlots":
+            case "DropItem":
+                // Synchronous tools, no specific start logic needed
+                break;
         }
 
         return handle;
@@ -104,6 +113,13 @@ public class SmapiToolDispatcher : IToolDispatcher
                 "WaitUntil" => PollWaitUntil(task, tickId),
                 "ShopBuy" => PollShopBuy(task, tickId),
                 "WaterCrops" => PollWaterCrops(task, tickId),
+                "GetInventoryStatus" => PollGetInventoryStatus(task),
+                "GetHotbarItems" => PollGetHotbarItems(task),
+                "GetBackpackItems" => PollGetBackpackItems(task),
+                "GetCurrentActiveSlot" => PollGetCurrentActiveSlot(task),
+                "SetActiveSlot" => PollSetActiveSlot(task),
+                "SwapItemSlots" => PollSwapItemSlots(task),
+                "DropItem" => PollDropItem(task),
                 "ConsoleLog" => (true, ToolResult.Success(task.NodeId, task.ToolName)),
                 _ => (true, ToolResult.Failure(task.NodeId, task.ToolName, "unknown_tool", $"Tool {task.ToolName} not implemented"))
             };
@@ -560,6 +576,136 @@ public class SmapiToolDispatcher : IToolDispatcher
         }
 
         return (false, null);
+    }
+
+    #endregion
+
+    #region Inventory Tools
+
+    private (bool, ToolResult?) PollGetInventoryStatus(TaskState task)
+    {
+        var player = Game1.player;
+        if (player == null) return (true, ToolResult.Failure(task.NodeId, "GetInventoryStatus", "no_player", "Player not initialized"));
+
+        var data = new Dictionary<string, object>
+        {
+            ["currentSlot"] = player.CurrentToolIndex,
+            ["currentItem"] = player.CurrentItem?.DisplayName ?? "Empty",
+            ["totalSlots"] = player.MaxItems,
+            ["usedSlots"] = player.Items.Count(i => i != null),
+            ["emptySlots"] = player.MaxItems - player.Items.Count(i => i != null)
+        };
+        return (true, ToolResult.Success(task.NodeId, "GetInventoryStatus", data));
+    }
+
+    private (bool, ToolResult?) PollGetHotbarItems(TaskState task)
+    {
+        var items = new List<Dictionary<string, object>>();
+        for (int i = 0; i < 12; i++)
+        {
+            if (i >= Game1.player.MaxItems) break;
+            var item = i < Game1.player.Items.Count ? Game1.player.Items[i] : null;
+            items.Add(BuildItemInfo(i, item, i == Game1.player.CurrentToolIndex));
+        }
+        return (true, ToolResult.Success(task.NodeId, "GetHotbarItems", new Dictionary<string, object> { ["items"] = items }));
+    }
+
+    private (bool, ToolResult?) PollGetBackpackItems(TaskState task)
+    {
+        var items = new List<Dictionary<string, object>>();
+        for (int i = 12; i < Game1.player.MaxItems; i++)
+        {
+             var item = i < Game1.player.Items.Count ? Game1.player.Items[i] : null;
+             if (item != null)
+             {
+                 items.Add(BuildItemInfo(i, item, false));
+             }
+        }
+        return (true, ToolResult.Success(task.NodeId, "GetBackpackItems", new Dictionary<string, object> { ["items"] = items }));
+    }
+
+    private (bool, ToolResult?) PollGetCurrentActiveSlot(TaskState task)
+    {
+        var player = Game1.player;
+        var info = BuildItemInfo(player.CurrentToolIndex, player.CurrentItem, true);
+        return (true, ToolResult.Success(task.NodeId, "GetCurrentActiveSlot", info));
+    }
+
+    private (bool, ToolResult?) PollSetActiveSlot(TaskState task)
+    {
+        if (task.Args.TryGetValue("SlotIndex", out var slotObj))
+        {
+            int slot = Convert.ToInt32(slotObj);
+            if (slot < 0 || slot >= 12) 
+            {
+                 return (true, ToolResult.Failure(task.NodeId, "SetActiveSlot", "invalid_slot", "Slot index must be 0-11 for hotbar"));
+            }
+            
+            Game1.player.CurrentToolIndex = slot;
+            return (true, ToolResult.Success(task.NodeId, "SetActiveSlot", new Dictionary<string, object>{ ["newSlot"] = slot }));
+        }
+        return (true, ToolResult.Failure(task.NodeId, "SetActiveSlot", "missing_arg", "SlotIndex required"));
+    }
+    
+    private (bool, ToolResult?) PollSwapItemSlots(TaskState task)
+    {
+        if (task.Args.TryGetValue("SourceSlot", out var srcObj) && task.Args.TryGetValue("DestSlot", out var destObj))
+        {
+            int src = Convert.ToInt32(srcObj);
+            int dest = Convert.ToInt32(destObj);
+            var player = Game1.player;
+            
+            if (src < 0 || src >= player.MaxItems || dest < 0 || dest >= player.MaxItems)
+                return (true, ToolResult.Failure(task.NodeId, "SwapItemSlots", "out_of_range", $"Slots must be 0-{player.MaxItems-1}"));
+
+            var temp = player.Items[src];
+            player.Items[src] = player.Items[dest];
+            player.Items[dest] = temp;
+            
+            return (true, ToolResult.Success(task.NodeId, "SwapItemSlots"));
+        }
+        return (true, ToolResult.Failure(task.NodeId, "SwapItemSlots", "missing_args", "SourceSlot and DestSlot required"));
+    }
+
+    private (bool, ToolResult?) PollDropItem(TaskState task)
+    {
+         if (task.Args.TryGetValue("SlotIndex", out var slotObj))
+         {
+             int slot = Convert.ToInt32(slotObj);
+             var player = Game1.player;
+             if (slot < 0 || slot >= player.Items.Count)
+                return (true, ToolResult.Failure(task.NodeId, "DropItem", "invalid_slot", "Invalid slot"));
+                
+             var item = player.Items[slot];
+             if (item == null)
+                return (true, ToolResult.Failure(task.NodeId, "DropItem", "empty_slot", "Slot is empty"));
+                
+             Game1.createItemDebris(item, player.getStandingPosition(), player.FacingDirection);
+             player.Items[slot] = null;
+             
+             return (true, ToolResult.Success(task.NodeId, "DropItem"));
+         }
+         return (true, ToolResult.Failure(task.NodeId, "DropItem", "missing_arg", "SlotIndex required"));
+    }
+
+    private Dictionary<string, object> BuildItemInfo(int slotIndex, StardewValley.Item? item, bool isActive)
+    {
+        var info = new Dictionary<string, object>
+        {
+            ["slotIndex"] = slotIndex,
+            ["isActive"] = isActive,
+            ["hasItem"] = item != null
+        };
+
+        if (item != null)
+        {
+            info["itemId"] = item.ItemId ?? item.Name; 
+            info["name"] = item.DisplayName;
+            info["stack"] = item.Stack;
+            info["category"] = item.Category;
+            info["quality"] = item.Quality;
+        }
+        return info;
     }
 
     #endregion
