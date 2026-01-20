@@ -1,7 +1,7 @@
 {
     "Name": "AI Star Agent",
     "Author": "YourName",
-    "Version": "1.0.0",
+    "Version": "1.0.1",
     "Description": "An AI Agent that can autonomously play Stardew Valley",
     "UniqueID": "YourName.AIStarAgent",
     "EntryDll": "StardewAgentMod.dll",

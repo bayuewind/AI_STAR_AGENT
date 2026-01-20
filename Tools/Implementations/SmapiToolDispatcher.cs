@@ -6,6 +6,7 @@ using StardewValley.Menus;
 using Microsoft.Xna.Framework;
 using Tools.Movement;
 using Tools.WaterBot;
+using Tools.World;
 
 namespace Tools.Implementations;
 
@@ -29,6 +30,7 @@ public class SmapiToolDispatcher : IToolDispatcher
     private readonly MovementController _movementController;
     private readonly ActionHandler _actionHandler;
     private readonly GlobalRoutePlanner _routePlanner;
+    private readonly WorldStateCache _worldStateCache;
     private WaterBotController? _waterBot;
 
     // Constructor for DI
@@ -46,6 +48,9 @@ public class SmapiToolDispatcher : IToolDispatcher
         // Load POI Database from mod assets
         string jsonPath = Path.Combine(modPath, "assets", "Locations.json");
         _routePlanner.LoadLocations(jsonPath);
+        
+        // Initialize world state cache
+        _worldStateCache = new WorldStateCache(monitor);
 
         MovementPatcher.ApplyPatches(monitor);
     }
@@ -88,6 +93,7 @@ public class SmapiToolDispatcher : IToolDispatcher
             case "SetActiveSlot":
             case "SwapItemSlots":
             case "DropItem":
+            case "GetWorldState":
                 // Synchronous tools, no specific start logic needed
                 break;
         }
@@ -120,6 +126,7 @@ public class SmapiToolDispatcher : IToolDispatcher
                 "SetActiveSlot" => PollSetActiveSlot(task),
                 "SwapItemSlots" => PollSwapItemSlots(task),
                 "DropItem" => PollDropItem(task),
+                "GetWorldState" => PollGetWorldState(task),
                 "ConsoleLog" => (true, ToolResult.Success(task.NodeId, task.ToolName)),
                 _ => (true, ToolResult.Failure(task.NodeId, task.ToolName, "unknown_tool", $"Tool {task.ToolName} not implemented"))
             };
@@ -706,6 +713,115 @@ public class SmapiToolDispatcher : IToolDispatcher
             info["quality"] = item.Quality;
         }
         return info;
+    }
+
+    #endregion
+
+    #region World State Tools
+
+    private (bool, ToolResult?) PollGetWorldState(TaskState task)
+    {
+        // Parse optional arguments
+        bool includeGrid = true;
+        bool includeEntities = true;
+        string? filterType = null;
+        
+        if (task.Args.TryGetValue("IncludeGrid", out var gridObj))
+            includeGrid = Convert.ToBoolean(gridObj);
+        if (task.Args.TryGetValue("IncludeEntities", out var entitiesObj))
+            includeEntities = Convert.ToBoolean(entitiesObj);
+        if (task.Args.TryGetValue("FilterType", out var filterObj))
+            filterType = filterObj?.ToString();
+        
+        // Refresh cache if needed
+        if (!_worldStateCache.IsFresh())
+        {
+            _worldStateCache.Rebuild(Game1.currentLocation);
+        }
+        
+        var snapshot = _worldStateCache.GetSnapshot();
+        if (snapshot == null)
+        {
+            return (true, ToolResult.Failure(task.NodeId, "GetWorldState", "no_snapshot", "Failed to generate world state snapshot"));
+        }
+        
+        // If filtering by type, filter entities
+        if (!string.IsNullOrEmpty(filterType) && Enum.TryParse<TileKind>(filterType, true, out var kind))
+        {
+            snapshot = FilterSnapshot(snapshot, kind, includeGrid, includeEntities);
+        }
+        
+        return (true, ToolResult.Success(task.NodeId, "GetWorldState", snapshot.ToDict(includeGrid, includeEntities)));
+    }
+    
+    private WorldStateSnapshot FilterSnapshot(WorldStateSnapshot original, TileKind filterKind, bool includeGrid, bool includeEntities)
+    {
+        var filtered = new WorldStateSnapshot
+        {
+            Location = original.Location,
+            Width = original.Width,
+            Height = original.Height,
+            Tick = original.Tick,
+            PlayerX = original.PlayerX,
+            PlayerY = original.PlayerY,
+            Legend = original.Legend,
+            Entities = original.Entities.Where(e => e.Kind == filterKind).ToList()
+        };
+        
+        // For filtered results, we typically don't send the whole grid
+        // Instead, provide positions of matching tiles
+        if (includeGrid)
+        {
+            filtered.Grid = original.Grid;
+        }
+        
+        return filtered;
+    }
+    
+    /// <summary>
+    /// Invalidate the world state cache (call from SMAPI events)
+    /// </summary>
+    public void InvalidateWorldCache()
+    {
+        _worldStateCache.Invalidate();
+    }
+    
+    /// <summary>
+    /// Get a world state snapshot directly (for console commands)
+    /// </summary>
+    public WorldStateSnapshot? GetWorldStateSnapshot(string? filterType = null)
+    {
+        if (!_worldStateCache.IsFresh())
+        {
+            _worldStateCache.Rebuild(Game1.currentLocation);
+        }
+        
+        var snapshot = _worldStateCache.GetSnapshot();
+        
+        if (!string.IsNullOrEmpty(filterType) && Enum.TryParse<TileKind>(filterType, true, out var kind) && snapshot != null)
+        {
+            return FilterSnapshot(snapshot, kind, false, true);
+        }
+        
+        return snapshot;
+    }
+    
+    /// <summary>
+    /// Find nearest object of a specific type (utility method)
+    /// </summary>
+    public (int x, int y, int distance)? FindNearest(string objectType)
+    {
+        if (!_worldStateCache.IsFresh())
+        {
+            _worldStateCache.Rebuild(Game1.currentLocation);
+        }
+        
+        if (Enum.TryParse<TileKind>(objectType, true, out var kind))
+        {
+            return _worldStateCache.FindNearest(kind);
+        }
+        
+        return null;
     }
 
     #endregion

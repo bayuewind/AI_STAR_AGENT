@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using StardewModdingAPI;
 using StardewModdingAPI.Events;
 using StardewValley;
@@ -32,8 +33,11 @@ namespace StardewAgentMod
             helper.Events.Input.ButtonPressed += OnButtonPressed;
             helper.Events.Display.RenderedWorld += OnRenderedWorld;
             
+            this.Monitor.Log("Registering console commands...", LogLevel.Info);
             helper.ConsoleCommands.Add("agent_tool", "Run a tool directly. Usage: agent_tool <ToolName> [Key=Value]...", OnAgentToolCommand);
             helper.ConsoleCommands.Add("agent_goal", "Give AI a goal. Usage: agent_goal <goal text>", OnAgentGoalCommand);
+            helper.ConsoleCommands.Add("ai_world", "Dump world state. Usage: ai_world [filter]", OnWorldStateCommand);
+            this.Monitor.Log("Console commands registered: agent_tool, agent_goal, ai_world", LogLevel.Info);
         }
 
         private void OnGameLaunched(object? sender, GameLaunchedEventArgs e)
@@ -75,7 +79,44 @@ namespace StardewAgentMod
         {
             // Reset agent state on load
             _agent?.GoalStack.Clear();
+            
+            // Hook events for world state cache invalidation
+            this.Helper.Events.Player.Warped += OnPlayerWarped;
+            this.Helper.Events.World.ObjectListChanged += OnObjectListChanged;
+            this.Helper.Events.World.TerrainFeatureListChanged += OnTerrainFeatureListChanged;
+            this.Helper.Events.World.BuildingListChanged += OnBuildingListChanged;
+            this.Helper.Events.World.FurnitureListChanged += OnFurnitureListChanged;
+            
             this.Monitor.Log("AI Agent ready. Press F5 to give a command.", LogLevel.Info);
+        }
+
+        private void OnPlayerWarped(object? sender, WarpedEventArgs e)
+        {
+            _tools?.InvalidateWorldCache();
+        }
+
+        private void OnObjectListChanged(object? sender, ObjectListChangedEventArgs e)
+        {
+            if (e.Location == Game1.currentLocation)
+                _tools?.InvalidateWorldCache();
+        }
+
+        private void OnTerrainFeatureListChanged(object? sender, TerrainFeatureListChangedEventArgs e)
+        {
+            if (e.Location == Game1.currentLocation)
+                _tools?.InvalidateWorldCache();
+        }
+
+        private void OnBuildingListChanged(object? sender, BuildingListChangedEventArgs e)
+        {
+            if (e.Location == Game1.currentLocation)
+                _tools?.InvalidateWorldCache();
+        }
+
+        private void OnFurnitureListChanged(object? sender, FurnitureListChangedEventArgs e)
+        {
+            if (e.Location == Game1.currentLocation)
+                _tools?.InvalidateWorldCache();
         }
 
         private void OnUpdateTicked(object? sender, UpdateTickedEventArgs e)
@@ -243,6 +284,68 @@ namespace StardewAgentMod
             _agent.GoalStack.Push(goal);
             this.Monitor.Log($"✅ Goal added: {goalText}", LogLevel.Info);
         }
+
+        private void OnWorldStateCommand(string command, string[] args)
+        {
+            if (_tools == null)
+            {
+                this.Monitor.Log("Tools not initialized.", LogLevel.Error);
+                return;
+            }
+
+            string? filter = args.Length > 0 ? args[0] : null;
+            
+            try
+            {
+                var snapshot = _tools.GetWorldStateSnapshot(filter);
+                
+                if (snapshot == null)
+                {
+                    this.Monitor.Log("Failed to get world state snapshot.", LogLevel.Error);
+                    return;
+                }
+                
+                this.Monitor.Log($"=== World State: {snapshot.Location} ({snapshot.Width}x{snapshot.Height}) ===", LogLevel.Info);
+                this.Monitor.Log($"Player at: ({snapshot.PlayerX}, {snapshot.PlayerY})", LogLevel.Info);
+                this.Monitor.Log($"Tick: {snapshot.Tick}", LogLevel.Info);
+                
+                // Show legend
+                this.Monitor.Log($"Legend: {string.Join(", ", snapshot.Legend.Select(kv => $"{kv.Key}={kv.Value}"))}", LogLevel.Info);
+                
+                // Show entity count per type
+                var groupedEntities = snapshot.Entities
+                    .GroupBy(e => e.Kind)
+                    .OrderByDescending(g => g.Count())
+                    .Take(10);
+                    
+                this.Monitor.Log($"Entities ({snapshot.Entities.Count} total):", LogLevel.Info);
+                foreach (var group in groupedEntities)
+                {
+                    this.Monitor.Log($"  {group.Key}: {group.Count()}", LogLevel.Info);
+                }
+                
+                // Show first 15 entities with details
+                this.Monitor.Log("Sample entities:", LogLevel.Info);
+                foreach (var entity in snapshot.Entities.Take(15))
+                {
+                    string meta = "";
+                    if (entity.Meta != null && entity.Meta.Count > 0)
+                    {
+                        meta = " [" + string.Join(", ", entity.Meta.Take(3).Select(kv => $"{kv.Key}={kv.Value}")) + "]";
+                    }
+                    this.Monitor.Log($"  ({entity.X},{entity.Y}) {entity.Kind}: {entity.Name ?? entity.Id}{meta}", LogLevel.Info);
+                }
+                
+                if (snapshot.Entities.Count > 15)
+                {
+                    this.Monitor.Log($"  ... and {snapshot.Entities.Count - 15} more", LogLevel.Info);
+                }
+            }
+            catch (Exception ex)
+            {
+                this.Monitor.Log($"Error getting world state: {ex.Message}", LogLevel.Error);
+            }
+        }
     }
 
     public class ModConfig
@@ -251,3 +354,4 @@ namespace StardewAgentMod
         public string ModelName { get; set; } = "gpt-4o";
     }
 }
+
