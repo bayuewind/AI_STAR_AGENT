@@ -542,4 +542,17 @@ public class SmapiToolDispatcher : IToolDispatcher
     }
 
     #endregion
+
+    #region Debug Visualization
+
+    /// <summary>
+    /// Draws the path indicator on the game screen for debugging.
+    /// Call this from RenderedWorld event.
+    /// </summary>
+    public void DrawPathIndicator(Microsoft.Xna.Framework.Graphics.SpriteBatch spriteBatch)
+    {
+        _movementController.DrawPathIndicator(spriteBatch);
+    }
+
+    #endregion
 }

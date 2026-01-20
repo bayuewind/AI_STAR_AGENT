@@ -371,5 +371,16 @@ namespace Tools.Movement
             if (!IsMoving) return Vector2.Zero;
             return _pathFinder.moveDirection();
         }
+
+        /// <summary>
+        /// Draws the path indicator on screen for debugging.
+        /// </summary>
+        public void DrawPathIndicator(Microsoft.Xna.Framework.Graphics.SpriteBatch spriteBatch)
+        {
+            if (_config.ShowPathIndicator)
+            {
+                _pathFinder.drawIndicator(spriteBatch);
+            }
+        }
     }
 }

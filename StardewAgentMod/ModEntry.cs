@@ -30,8 +30,10 @@ namespace StardewAgentMod
             helper.Events.GameLoop.SaveLoaded += OnSaveLoaded;
             helper.Events.GameLoop.UpdateTicked += OnUpdateTicked;
             helper.Events.Input.ButtonPressed += OnButtonPressed;
+            helper.Events.Display.RenderedWorld += OnRenderedWorld;
             
             helper.ConsoleCommands.Add("agent_tool", "Run a tool directly. Usage: agent_tool <ToolName> [Key=Value]...", OnAgentToolCommand);
+            helper.ConsoleCommands.Add("agent_goal", "Give AI a goal. Usage: agent_goal <goal text>", OnAgentGoalCommand);
         }
 
         private void OnGameLaunched(object? sender, GameLaunchedEventArgs e)
@@ -98,7 +100,7 @@ namespace StardewAgentMod
                 var (ready, result) = _tools.Poll(_debugToolHandle, _tickCounter);
                 if (ready)
                 {
-                    this.Monitor.Log($"[DebugTool] Finished: {result?.Status} - {result?.Message}", LogLevel.Info);
+                    this.Monitor.Log($"[DebugTool] Finished: {(result?.Ok == true ? "Success" : "Failed")} - {(result?.Error?.Detail ?? "Completed")}", LogLevel.Info);
                     _debugToolHandle = null;
                 }
             }
@@ -128,7 +130,14 @@ namespace StardewAgentMod
                 // We might need an Agent.Stop() method to cancel running tools immediately
             }
         }
-            }
+
+        private void OnRenderedWorld(object? sender, StardewModdingAPI.Events.RenderedWorldEventArgs e)
+        {
+            if (!Context.IsWorldReady || _tools == null)
+                return;
+            
+            // Draw path visualization
+            _tools.DrawPathIndicator(e.SpriteBatch);
         }
 
         private void OnAgentToolCommand(string command, string[] args)
@@ -165,6 +174,35 @@ namespace StardewAgentMod
             {
                 this.Monitor.Log($"[DebugTool] Error starting tool: {ex.Message}", LogLevel.Error);
             }
+        }
+
+        private void OnAgentGoalCommand(string command, string[] args)
+        {
+            if (_agent == null)
+            {
+                this.Monitor.Log("Agent not initialized.", LogLevel.Error);
+                return;
+            }
+            
+            if (args.Length < 1)
+            {
+                this.Monitor.Log("Usage: agent_goal <goal text>", LogLevel.Error);
+                this.Monitor.Log("Example: agent_goal Go to Pierre's and buy 5 Parsnip Seeds", LogLevel.Info);
+                return;
+            }
+
+            // Join all arguments as the goal text
+            string goalText = string.Join(" ", args);
+            
+            var goal = new Goal 
+            { 
+                Id = Guid.NewGuid().ToString(), 
+                Text = goalText, 
+                Priority = 10 
+            };
+            
+            _agent.GoalStack.Push(goal);
+            this.Monitor.Log($"✅ Goal added: {goalText}", LogLevel.Info);
         }
     }
 
